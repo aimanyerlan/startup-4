@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+// Подключаем магию Firebase:
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ResultScreen extends StatelessWidget {
   const ResultScreen({super.key});
@@ -27,6 +30,53 @@ class ResultScreen extends StatelessWidget {
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     }
 
+    // --- НОВАЯ ФУНКЦИЯ ДЛЯ СОХРАНЕНИЯ В FIREBASE ---
+    Future<void> saveToFirestore() async {
+      try {
+        // 1. Узнаем, кто сейчас сидит в приложении
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ошибка: Пользователь не авторизован')),
+          );
+          return;
+        }
+
+        // 2. Отправляем данные продукта в Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid) // Личная папка пользователя
+            .collection('saved_scans') // Подпапка с его сканами
+            .add({
+          'productName': 'Artisan Whole Grain',
+          'ingredients': safeIngredients,
+          'allergens': allergens,
+          'weight': '500g',
+          'calories': '120 kcal',
+          'status': 'SAFE TO CONSUME',
+          'timestamp': FieldValue.serverTimestamp(), // Время сохранения
+        });
+
+        // 3. Радуем пользователя и возвращаем домой
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Успешно сохранено в облако! ☁️'), 
+              backgroundColor: Colors.green
+            ),
+          );
+          goHome();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+    // -----------------------------------------------
+
     return PopScope(
       canPop: !fromScan,
       onPopInvoked: (didPop) async {
@@ -43,7 +93,7 @@ class ResultScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              // Header (custom)
+              // Header
               Row(
                 children: [
                   IconButton(
@@ -233,12 +283,8 @@ class ResultScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Analysis saved')),
-                        );
-                        Navigator.pushNamed(context, '/home');
-                      },
+                      // ПРИВЯЗАЛИ ФУНКЦИЮ СЮДА:
+                      onPressed: saveToFirestore,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -256,7 +302,7 @@ class ResultScreen extends StatelessWidget {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: const Text('Back to Home', style: TextStyle(fontWeight: FontWeight.w900)),
+                      child: const Text('Back to Home', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black)),
                     ),
                     const SizedBox(height: 24),
                   ],

@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:my_app/widgets/layout.dart';
+// Проверь, чтобы этот путь совпадал с твоим проектом!
+import 'package:my_app/widgets/layout.dart'; 
 
 const Color _emerald = Color(0xFF10B981);
 
@@ -80,19 +81,19 @@ class _CameraScanScreenState extends State<CameraScanScreen>
     });
   }
 
+  // --- ВОТ НАШЕ ГЛАВНОЕ ИСПРАВЛЕНИЕ ---
   Future<void> _handleBack() async {
     if (_isScanning) {
       _stopScanning();
     }
-
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
+    
+    // Просто аккуратно закрываем этот экран, если это возможно,
+    // не уничтожая при этом нижнюю панель навигации!
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
     }
-
-    navigator.pushNamedAndRemoveUntil('/home', (route) => false);
   }
+  // ------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +306,6 @@ class _CameraScanScreenState extends State<CameraScanScreen>
     });
   }
 
-  // replaces previous _corner; returns a corner marker sized box
   Widget _cornerMarker(Alignment alignment) {
     return Container(
       width: 48,
@@ -313,16 +313,16 @@ class _CameraScanScreenState extends State<CameraScanScreen>
       decoration: BoxDecoration(
         border: Border(
           top: alignment.y == -1
-              ? BorderSide(width: 4, color: _emerald)
+              ? const BorderSide(width: 4, color: _emerald)
               : BorderSide.none,
           bottom: alignment.y == 1
-              ? BorderSide(width: 4, color: _emerald)
+              ? const BorderSide(width: 4, color: _emerald)
               : BorderSide.none,
           left: alignment.x == -1
-              ? BorderSide(width: 4, color: _emerald)
+              ? const BorderSide(width: 4, color: _emerald)
               : BorderSide.none,
           right: alignment.x == 1
-              ? BorderSide(width: 4, color: _emerald)
+              ? const BorderSide(width: 4, color: _emerald)
               : BorderSide.none,
         ),
         borderRadius: BorderRadius.only(
@@ -379,7 +379,7 @@ class _CameraScanScreenState extends State<CameraScanScreen>
                         child: Container(
                           width: 80,
                           height: 80,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: _emerald,
                             shape: BoxShape.circle,
                           ),
@@ -399,7 +399,7 @@ class _CameraScanScreenState extends State<CameraScanScreen>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(
                             color: Colors.black26,
                             blurRadius: 20,
