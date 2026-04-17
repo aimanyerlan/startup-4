@@ -7,7 +7,6 @@ import 'auth_screen.dart';
 import 'widgets/bottom_nav.dart'; 
 
 // Импорты остальных экранов:
-import 'screens/home_screen.dart';
 import 'screens/converter_screen.dart';
 import 'screens/compare_screen.dart';
 import 'screens/camera_scan_screen.dart';

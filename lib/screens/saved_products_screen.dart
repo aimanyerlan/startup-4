@@ -1,26 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:my_app/widgets/layout.dart';
+import 'package:my_app/widgets/layout.dart'; // Проверь, правильный ли у тебя тут путь
 
-class Product {
-  final int id;
-  final String name;
-  final String brand;
-  final String status;
-  final String calories;
-  final bool saved;
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.brand,
-    required this.status,
-    required this.calories,
-    required this.saved,
-  });
-}
+// Подключаем магию Firebase:
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SavedProductsScreen extends StatefulWidget {
   const SavedProductsScreen({super.key});
@@ -30,68 +14,12 @@ class SavedProductsScreen extends StatefulWidget {
 }
 
 class _SavedProductsScreenState extends State<SavedProductsScreen> {
-  bool isGuest = false;
-  Set<int> savedProductIds = {};
-  final Set<int> _pendingRemovalIds = {};
-  final Map<int, Timer> _removalTimers = {};
+  
+  // Узнаем, кто сейчас в приложении и гость ли он
+  final User? currentUser = FirebaseAuth.instance.currentUser;
+  bool get isGuest => currentUser == null || currentUser!.isAnonymous;
 
-  late List<Product> savedProducts;
-
-  static final List<Product> _initialProducts = [
-    Product(id: 1, name: 'Organic Milk', brand: 'Happy Valley', status: 'safe', calories: '150 kcal', saved: true),
-    Product(id: 2, name: 'Greek Yogurt', brand: 'Chobani', status: 'safe', calories: '100 kcal', saved: true),
-    Product(id: 3, name: 'Almond Butter', brand: 'Natural', status: 'safe', calories: '190 kcal', saved: true),
-    Product(id: 4, name: 'Whole Grain Bread', brand: "Dave's Organic", status: 'warning', calories: '120 kcal', saved: true),
-    Product(id: 5, name: 'Organic Apples', brand: 'Local Farm', status: 'safe', calories: '52 kcal', saved: true),
-  ];
-
-  static Set<int> _persistedSavedIds = {for (var p in _initialProducts) p.id};
-
-  @override
-  void initState() {
-    super.initState();
-    savedProducts = List<Product>.from(_initialProducts);
-    savedProductIds = Set<int>.from(_persistedSavedIds);
-  }
-
-  @override
-  void dispose() {
-    for (final timer in _removalTimers.values) {
-      timer.cancel();
-    }
-    _removalTimers.clear();
-    super.dispose();
-  }
-
-  void _toggleSaved(Product product) {
-    final id = product.id;
-
-    setState(() {
-      final isSaved = savedProductIds.contains(id);
-
-      if (isSaved) {
-        savedProductIds.remove(id);
-        _pendingRemovalIds.add(id);
-
-        _removalTimers[id]?.cancel();
-        _removalTimers[id] = Timer(const Duration(seconds: 5), () {
-          if (!mounted) return;
-          setState(() {
-            _pendingRemovalIds.remove(id);
-            _persistedSavedIds.remove(id);
-            _removalTimers.remove(id);
-          });
-        });
-      } else {
-        savedProductIds.add(id);
-        _persistedSavedIds.add(id);
-        _pendingRemovalIds.remove(id);
-        _removalTimers[id]?.cancel();
-        _removalTimers.remove(id);
-      }
-    });
-  }
-
+  // Твоя шикарная функция для определения цветов иконок осталась без изменений!
   Map<String, dynamic> _getProductStyle(String name) {
     final lower = name.toLowerCase();
     
@@ -145,6 +73,24 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
       'iconColor': Colors.grey.shade400,
       'icon': Icons.bookmark,
     };
+  }
+
+  // Новая функция: Удаление продукта из Firebase
+  Future<void> _deleteProduct(String docId) async {
+    if (currentUser != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .collection('saved_scans')
+          .doc(docId)
+          .delete();
+          
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Продукт удален'), duration: Duration(seconds: 2)),
+        );
+      }
+    }
   }
 
   @override
@@ -244,104 +190,152 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
     );
   }
 
+  // --- ВОТ ТУТ ПРОИСХОДИТ МАГИЯ FIREBASE ---
   Widget _buildProductsList(BuildContext context) {
-    final displayedProducts = savedProducts
-        .where((p) => savedProductIds.contains(p.id) || _pendingRemovalIds.contains(p.id))
-        .toList();
+    return StreamBuilder<QuerySnapshot>(
+      // Подключаемся к базе и сортируем продукты от самых новых к старым
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .collection('saved_scans')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        
+        // 1. Пока данные скачиваются из интернета
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF2ECC71)));
+        }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        children: displayedProducts.asMap().entries.map((entry) {
-          final product = entry.value;
-          final style = _getProductStyle(product.name);
-          final isSaved = savedProductIds.contains(product.id);
+        // 2. Если что-то пошло не так
+        if (snapshot.hasError) {
+          return Center(child: Text('Ошибка загрузки: ${snapshot.error}'));
+        }
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12.0),
-            child: GestureDetector(
-              onTap: () => Navigator.pushNamed(
-                context,
-                '/results',
-                arguments: {
-                  'source': 'saved',
-                  'productName': product.name,
-                },
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: style['bg'],
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        // 3. Если база пустая (пользователь еще ничего не сканировал)
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.bookmark_border, size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Нет сохраненных продуктов',
+                  style: GoogleFonts.lato(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w600),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: style['iconBg'],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(style['icon'], size: 28, color: style['iconColor']),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product.name,
-                            style: GoogleFonts.lato(fontSize: 13, fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            product.brand,
-                            style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Text(
-                                product.calories,
-                                style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 4,
-                                height: 4,
-                                decoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                product.status == 'safe' ? 'SAFE' : 'CHECK',
-                                style: GoogleFonts.lato(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: product.status == 'safe' ? const Color(0xFF2ECC71) : Colors.orange.shade500,
-                                ),
-                              ),
-                            ],
-                          )
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => _toggleSaved(product),
-                      child: Icon(
-                        isSaved ? Icons.bookmark : Icons.bookmark_outline,
-                        color: isSaved ? const Color(0xFF2ECC71) : Colors.grey,
-                        size: 24,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
           );
-        }).toList(),
-      ),
+        }
+
+        // 4. Ура! Данные есть. Берем их и строим список.
+        final docs = snapshot.data!.docs;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            children: docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final docId = doc.id; // Уникальный ID продукта в базе
+              
+              // Вытаскиваем значения из Firebase
+              final productName = data['productName'] ?? 'Неизвестный продукт';
+              final calories = data['calories'] ?? '-- kcal';
+              final rawStatus = data['status'] ?? 'CHECK';
+              final status = rawStatus == 'SAFE TO CONSUME' ? 'safe' : 'warning';
+              
+              // Подбираем цвета с помощью твоей функции
+              final style = _getProductStyle(productName);
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/results',
+                    arguments: {
+                      'source': 'saved',
+                      'productName': productName,
+                    },
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: style['bg'],
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: style['iconBg'],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Icon(style['icon'], size: 28, color: style['iconColor']),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                productName,
+                                style: GoogleFonts.lato(fontSize: 13, fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Scanned Product', 
+                                style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Text(
+                                    calories,
+                                    style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 4,
+                                    height: 4,
+                                    decoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    status == 'safe' ? 'SAFE' : 'CHECK',
+                                    style: GoogleFonts.lato(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: status == 'safe' ? const Color(0xFF2ECC71) : Colors.orange.shade500,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          // Кнопка удаления!
+                          onTap: () => _deleteProduct(docId),
+                          child: const Icon(
+                            Icons.bookmark, // Закладка всегда зеленая, так как продукт сохранен
+                            color: Color(0xFF2ECC71),
+                            size: 24,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }
