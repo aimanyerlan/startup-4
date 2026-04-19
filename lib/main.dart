@@ -7,6 +7,7 @@ import 'auth_screen.dart';
 import 'widgets/bottom_nav.dart'; 
 
 // Импорты остальных экранов:
+import 'screens/register_screen.dart'; // <-- 1. ДОБАВИЛИ ИМПОРТ ЭКРАНА РЕГИСТРАЦИИ
 import 'screens/converter_screen.dart';
 import 'screens/compare_screen.dart';
 import 'screens/camera_scan_screen.dart';
@@ -41,9 +42,9 @@ class FreshScanApp extends StatelessWidget {
       home: const AuthScreen(),
       
       routes: {
-        // ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-        // Теперь /home открывает панель навигации (BottomNavBar), а не голый экран!
         '/home': (context) => const BottomNavBar(),
+        
+        '/register': (context) => const RegisterScreen(), // <-- 2. ДОБАВИЛИ МАРШРУТ
         
         '/converter': (context) => const ConverterScreen(),
         '/compare': (context) => const CompareScreen(),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/widgets/layout.dart';
+// 1. Подключаем Firebase Auth
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -83,10 +85,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+
+    // 2. НАСТОЯЩАЯ РЕГИСТРАЦИЯ В FIREBASE
+    try {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Если регистрация прошла успешно:
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Аккаунт успешно создан! 🎉'), 
+            backgroundColor: Color(0xFF10B981)
+          ),
+        );
+        // Перекидываем на главную (кнопка "Назад" больше не будет работать)
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      // 3. ОБРАБОТКА ОШИБОК FIREBASE (Например, такой email уже есть)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        String errorMessage = 'Ошибка регистрации';
+        
+        if (e.code == 'weak-password') {
+          errorMessage = 'Пароль слишком простой';
+        } else if (e.code == 'email-already-in-use') {
+          errorMessage = 'Аккаунт с таким email уже существует';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Неизвестная ошибка: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 

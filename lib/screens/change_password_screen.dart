@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// Подключаем магию Firebase Auth
+import 'package:firebase_auth/firebase_auth.dart';
+
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -16,6 +19,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _isObscureCurrentPassword = true;
   bool _isObscureNewPassword = true;
   bool _isObscureConfirmPassword = true;
+  
+  bool _isLoading = false; // Добавили индикатор загрузки
 
   @override
   void initState() {
@@ -33,7 +38,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
-  void _handleSave() {
+  // --- МАГИЯ СМЕНЫ ПАРОЛЯ В FIREBASE ---
+  Future<void> _handleSave() async {
     // Validate fields
     if (_currentPasswordController.text.isEmpty ||
         _newPasswordController.text.isEmpty ||
@@ -60,11 +66,63 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
 
-    // Success
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password changed successfully')),
-    );
-    Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      
+      // Если пользователь Гость, ему нельзя менять пароль
+      if (user == null || user.isAnonymous) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guests cannot change passwords')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 1. Повторная аутентификация (чтобы Firebase убедился, что это именно ты)
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!, 
+        password: _currentPasswordController.text
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Если старый пароль верный, устанавливаем новый
+      await user.updatePassword(_newPasswordController.text);
+
+      // Success
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password changed successfully! 🔐'), 
+            backgroundColor: Color(0xFF2ECC71)
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } on FirebaseAuthException catch (e) {
+      // Обработка ошибок (например, неверный старый пароль)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        String errorMessage = 'Error changing password';
+        if (e.code == 'invalid-credential') {
+           errorMessage = 'Current password is incorrect';
+        } else if (e.code == 'weak-password') {
+           errorMessage = 'The new password is too weak';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An unexpected error occurred'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -102,7 +160,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 shape: BoxShape.circle,
                 color: Colors.grey.shade50,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.arrow_back,
                 size: 20,
                 color: Colors.black87,
@@ -186,15 +244,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _handleSave,
-              child: Text(
-                'Update Password',
-                style: GoogleFonts.lato(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                ),
-              ),
+              onPressed: _isLoading ? null : _handleSave,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      'Update Password',
+                      style: GoogleFonts.lato(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],
