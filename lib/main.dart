@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
-// Импортируем экран авторизации и нашу НИЖНЮЮ ПАНЕЛЬ
 import 'auth_screen.dart'; 
 import 'widgets/bottom_nav.dart'; 
 
-// Импорты остальных экранов:
 import 'screens/converter_screen.dart';
 import 'screens/compare_screen.dart';
 import 'screens/camera_scan_screen.dart';
@@ -41,8 +39,6 @@ class FreshScanApp extends StatelessWidget {
       home: const AuthScreen(),
       
       routes: {
-        // ВОТ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-        // Теперь /home открывает панель навигации (BottomNavBar), а не голый экран!
         '/home': (context) => const BottomNavBar(),
         
         '/converter': (context) => const ConverterScreen(),
@@ -50,7 +46,7 @@ class FreshScanApp extends StatelessWidget {
         '/scan': (context) => const CameraScanScreen(),
         '/history': (context) => const FullHistoryScreen(),
         '/recipes': (context) => const RecipesScreen(),
-        '/results': (context) => const ResultScreen(),
+        '/results': (context) => ResultScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/saved': (context) => const SavedProductsScreen(),
       },

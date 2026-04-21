@@ -1,318 +1,220 @@
 import 'package:flutter/material.dart';
-// Подключаем магию Firebase:
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class ResultScreen extends StatelessWidget {
+class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
 
-  static const List<String> safeIngredients = [
-    'Whole Wheat Flour',
-    'Water',
-    'Salt',
-    'Sourdough Starter',
-    'Olive Oil',
-  ];
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
 
-  static const List<String> allergens = [
-    'SOY',
-    'PEANUTS',
-  ];
+class _ResultScreenState extends State<ResultScreen> {
+  final String _apiKey = 'AIzaSyBrdDI1nWMU4euvvs9O3Jh8YDQDNVhdnkY'; 
+  bool _isLoading = true;
+  Map<String, dynamic>? _analysisResult;
+  String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_analysisResult == null && _error == null) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final rawText = args?['fullText'] ?? '';
+      _runAnalysis(rawText);
+    }
+  }
+
+  Future<void> _saveAnalysis() async {
+    if (_analysisResult == null) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Пожалуйста, войдите в аккаунт для сохранения')),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('saved_scans')
+          .add({
+        ..._analysisResult!,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Анализ успешно сохранен! 🍏'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка сохранения: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _runAnalysis(String text) async {
+    try {
+      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: _apiKey);
+
+      final prompt = """
+      Ты — эксперт-нутрициолог. Проанализируй этот текст этикетки: "$text".
+      Выдай ответ СТРОГО в формате JSON на русском:
+      {
+        "productName": "название",
+        "weight": "вес",
+        "calories": "ккал",
+        "status": "SAFE или DANGER",
+        "dangerous": ["вредное"],
+        "healthy": ["полезное"],
+        "ingredients": ["список через запятую"]
+      }
+      """;
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      final cleanJson = response.text!.replaceAll('```json', '').replaceAll('```', '').trim();
+      
+      setState(() {
+        _analysisResult = jsonDecode(cleanJson);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = "Ошибка: $e";
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final source = args is Map<String, dynamic> ? (args['source']?.toString() ?? '') : '';
-    final bool showActionButtons = source != 'saved';
-    final bool fromScan = source == 'scan';
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF10B981))));
+    if (_error != null) return Scaffold(body: Center(child: Text(_error!)));
 
-    Future<void> goHome() async {
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
-    }
+    final data = _analysisResult!;
+    final bool isSafe = data['status'].toString().toUpperCase().contains('SAFE');
 
-    // --- НОВАЯ ФУНКЦИЯ ДЛЯ СОХРАНЕНИЯ В FIREBASE ---
-    Future<void> saveToFirestore() async {
-      try {
-        // 1. Узнаем, кто сейчас сидит в приложении
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ошибка: Пользователь не авторизован')),
-          );
-          return;
-        }
-
-        // 2. Отправляем данные продукта в Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid) // Личная папка пользователя
-            .collection('saved_scans') // Подпапка с его сканами
-            .add({
-          'productName': 'Artisan Whole Grain',
-          'ingredients': safeIngredients,
-          'allergens': allergens,
-          'weight': '500g',
-          'calories': '120 kcal',
-          'status': 'SAFE TO CONSUME',
-          'timestamp': FieldValue.serverTimestamp(), // Время сохранения
-        });
-
-        // 3. Радуем пользователя и возвращаем домой
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Успешно сохранено в облако! ☁️'), 
-              backgroundColor: Colors.green
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: BackButton(color: Colors.black, onPressed: () => Navigator.pop(context)),
+        title: const Text("Анализ продукта", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(data['productName'] ?? 'Продукт', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            
+            _buildStatusBanner(isSafe, isSafe ? "БЕЗОПАСНО" : "ОПАСНО"),
+            
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                _metricCard("Вес", data['weight'] ?? "--"),
+                const SizedBox(width: 12),
+                _metricCard("Калории", data['calories'] ?? "--"),
+              ],
             ),
-          );
-          goHome();
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
-    // -----------------------------------------------
+            
+            const SizedBox(height: 24),
+            _buildList("⚠️ Опасные добавки", data['dangerous'], Colors.red),
+            _buildList("✅ Полезные вещества", data['healthy'], Colors.green),
+            
+            const SizedBox(height: 10),
+            const Text("Состав:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            Text((data['ingredients'] as List).join(', ')),
 
-    return PopScope(
-      canPop: !fromScan,
-      onPopInvoked: (didPop) async {
-        if (!didPop && fromScan) {
-          await goHome();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF9FAFB),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              // Header
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      if (fromScan) {
-                        goHome();
-                      } else {
-                        Navigator.pop(context);
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Artisan Whole Grain',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 40),
+            
+            // ИСПРАВЛЕННАЯ КНОПКА
+            ElevatedButton(
+              onPressed: _isLoading ? null : _saveAnalysis, 
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                minimumSize: const Size(double.infinity, 60),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
-
-              const SizedBox(height: 20),
-
-              // Safety Analysis Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.check_circle_outline, color: Colors.white, size: 40),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'SAFE TO CONSUME',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              child: const Text(
+                'Save Analysis', 
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
-
-              const SizedBox(height: 20),
-
-              // Ingredients Section
-              const Text(
-                'Ingredients',
-                style: TextStyle(fontWeight: FontWeight.w900, color: Colors.grey),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: safeIngredients.map((ing) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      border: Border.all(color: Colors.grey.shade200),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF10B981),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(ing),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Allergens
-              const Text(
-                'Allergens',
-                style: TextStyle(fontWeight: FontWeight.w900, color: Colors.grey),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: allergens.map((a) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF4EB),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFEF6C00), size: 18),
-                        const SizedBox(width: 8),
-                        Text(a, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFEF6C00))),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Metrics Grid
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0,4)),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Icon(Icons.monitor_weight, color: Colors.black54),
-                          SizedBox(height: 8),
-                          Text('Weight', style: TextStyle(fontWeight: FontWeight.w900)),
-                          SizedBox(height: 6),
-                          Text('500g', style: TextStyle(fontSize: 16)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0,4)),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Icon(Icons.local_fire_department, color: Colors.black54),
-                          SizedBox(height: 8),
-                          Text('Calories', style: TextStyle(fontWeight: FontWeight.w900)),
-                          SizedBox(height: 6),
-                          Text('120 kcal', style: TextStyle(fontSize: 16)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Action Buttons
-              if (showActionButtons)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ElevatedButton(
-                      // ПРИВЯЗАЛИ ФУНКЦИЮ СЮДА:
-                      onPressed: saveToFirestore,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Save Analysis', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text('Back to Home', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black)),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                )
-              else
-                const SizedBox(height: 24),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
-    ));
+    );
+  }
+
+  Widget _buildStatusBanner(bool isSafe, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isSafe ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          Icon(isSafe ? Icons.check_circle : Icons.warning, color: Colors.white),
+          const SizedBox(width: 15),
+          Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricCard(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: Column(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(String title, dynamic items, Color color) {
+    final list = items as List;
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: list.map((e) => Chip(
+            label: Text(e.toString()), 
+            backgroundColor: color.withOpacity(0.1),
+            side: BorderSide.none,
+          )).toList(),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
   }
 }

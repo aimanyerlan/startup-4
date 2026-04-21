@@ -33,6 +33,10 @@ dependencies:
 
   google_fonts: ^8.0.2
   image_picker: ^1.1.2
+  camera: ^0.12.0+1
+  google_mlkit_text_recognition: ^0.15.1
+  google_mlkit_barcode_scanning: ^0.14.2
+  google_mlkit_commons: ^0.11.1
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -40,6 +44,10 @@ dependencies:
   firebase_core: ^4.5.0
   firebase_auth: ^6.2.0
   cloud_firestore: ^6.3.0
+  mobile_scanner: ^7.2.0
+  http: ^1.2.0
+
+  google_generative_ai: any
 
 dev_dependencies:
   flutter_test:

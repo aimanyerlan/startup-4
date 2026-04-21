@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Нам нужен доступ к камере, чтобы анализировать состав продуктов.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Нам нужен доступ к галерее, чтобы вы могли загружать фото состава.</string>
 </dict>
 </plist>
