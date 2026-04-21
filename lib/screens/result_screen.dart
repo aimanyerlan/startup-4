@@ -12,7 +12,7 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  final String _apiKey = 'AIzaSyBrdDI1nWMU4euvvs9O3Jh8YDQDNVhdnkY'; 
+  final String _apiKey = 'AIzaSyBjz9Zm2nyDX6-klMDA84Z1SSv00ZVgv1M'; 
   bool _isLoading = true;
   Map<String, dynamic>? _analysisResult;
   String? _error;

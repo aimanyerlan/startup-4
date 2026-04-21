@@ -1,56 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/widgets/layout.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // Не забудьте добавить intl в pubspec.yaml
 
 class FullHistoryScreen extends StatelessWidget {
   const FullHistoryScreen({Key? key}) : super(key: key);
 
-  static const List<Map<String, String>> historyItems = [
-    {
-      'name': 'Organic Milk',
-      'date': '2h ago',
-      'time': '14:30',
-      'calories': '150 kcal',
-    },
-    {
-      'name': 'Whole Grain Bread',
-      'date': '5h ago',
-      'time': '11:15',
-      'calories': '120 kcal',
-    },
-    {
-      'name': 'Greek Yogurt',
-      'date': '1d ago',
-      'time': '09:45',
-      'calories': '100 kcal',
-    },
-    {
-      'name': 'Almond Butter',
-      'date': '2d ago',
-      'time': '16:20',
-      'calories': '190 kcal',
-    },
-    {
-      'name': 'Protein Bar',
-      'date': '3d ago',
-      'time': '12:00',
-      'calories': '200 kcal',
-    },
-    {
-      'name': 'Fresh Salmon',
-      'date': '4d ago',
-      'time': '18:30',
-      'calories': '206 kcal',
-    },
-    {
-      'name': 'Organic Apples',
-      'date': '5d ago',
-      'time': '10:15',
-      'calories': '52 kcal',
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
+    // Получаем ID текущего пользователя
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Layout(
       showNav: true,
       child: Scaffold(
@@ -60,20 +21,14 @@ class FullHistoryScreen extends StatelessWidget {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushNamed(context, '/home');
-              }
-            },
+            onPressed: () => Navigator.pop(context),
           ),
           title: Row(
             children: const [
               Icon(Icons.history, color: Colors.black),
               SizedBox(width: 8),
               Text(
-                'ALL HISTORY',
+                'ИСТОРИЯ СКАНОВ',
                 style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.w900,
@@ -82,120 +37,107 @@ class FullHistoryScreen extends StatelessWidget {
               ),
             ],
           ),
-          centerTitle: false,
-          automaticallyImplyLeading: false,
         ),
-        body: ListView.builder(
-          padding: const EdgeInsets.all(24),
-          itemCount: historyItems.length,
-          itemBuilder: (context, index) {
-            final item = historyItems[index];
-            final name = item['name']!.toLowerCase();
-            Color bg = Colors.white;
-            IconData icon = Icons.history;
+        body: uid == null 
+          ? const Center(child: Text("Войдите в аккаунт, чтобы увидеть историю"))
+          : StreamBuilder<QuerySnapshot>(
+              // Подключаемся к коллекции сохраненных сканов пользователя
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(uid)
+                  .collection('saved_scans')
+                  .orderBy('timestamp', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return Center(child: Text("Ошибка: ${snapshot.error}"));
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+                }
 
-            if (name.contains('milk')) {
-              bg = const Color(0xFFE0F5F0);
-              icon = Icons.local_drink;
-            } else if (name.contains('bread') || name.contains('grain')) {
-              bg = const Color(0xFFEDE9F3);
-              icon = Icons.bakery_dining;
-            } else if (name.contains('salmon') || name.contains('fish')) {
-              bg = const Color(0xFFFFE8E8);
-              icon = Icons.set_meal;
-            }
+                final docs = snapshot.data!.docs;
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/results'),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                if (docs.isEmpty) {
+                  return const Center(child: Text("История пуста"));
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(24),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    
+                    // Форматируем дату из Timestamp
+                    String formattedDate = "Недавно";
+                    if (data['timestamp'] != null) {
+                      DateTime date = (data['timestamp'] as Timestamp).toDate();
+                      formattedDate = DateFormat('dd.MM.yyyy HH:mm').format(date);
+                    }
+
+                    final bool isSafe = data['status']?.toString().toUpperCase() == 'SAFE';
+                    final String name = data['productName'] ?? 'Продукт';
+                    final String calories = data['calories'] ?? '-- ккал';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: GestureDetector(
+                        // Передаем данные конкретного скана на экран результатов
+                        onTap: () => Navigator.pushNamed(
+                          context, 
+                          '/results', 
+                          arguments: data // Передаем все данные документа
                         ),
-                        child: Icon(icon, color: Colors.black54),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['name']!,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
+                              color: isSafe ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                              width: 2
+                            ),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: isSafe ? Colors.green[50] : Colors.red[50],
+                                child: Icon(
+                                  isSafe ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                                  color: isSafe ? Colors.green : Colors.red,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  item['date']!,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Text(formattedDate, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                        const SizedBox(width: 10),
+                                        Text(calories, style: const TextStyle(fontSize: 12, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 6.0),
-                                  child: CircleAvatar(
-                                    radius: 3,
-                                    backgroundColor: Colors.grey,
-                                  ),
-                                ),
-                                Text(
-                                  item['time']!,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 6.0),
-                                  child: CircleAvatar(
-                                    radius: 3,
-                                    backgroundColor: Colors.grey,
-                                  ),
-                                ),
-                                Text(
-                                  item['calories']!,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const Icon(Icons.chevron_right, color: Colors.grey),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox.shrink(),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+                    );
+                  },
+                );
+              },
+            ),
       ),
     );
   }
