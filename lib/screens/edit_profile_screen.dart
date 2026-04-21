@@ -5,6 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+// 1. Подключаем проверку на Web платформу
+import 'package:flutter/foundation.dart'; 
+// 2. Подключаем Firebase
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> initialData;
 
@@ -19,6 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late Map<String, TextEditingController> controllers;
   final ImagePicker _picker = ImagePicker();
   String? _photoPath;
+  bool _isSaving = false; // Добавим индикатор загрузки
 
   @override
   void initState() {
@@ -161,8 +168,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  void _saveChanges() {
-    Navigator.pop(context, {
+  // --- МАГИЯ СОХРАНЕНИЯ В БАЗУ ДАННЫХ ---
+  Future<void> _saveChanges() async {
+    setState(() => _isSaving = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    final updatedData = {
       'firstName': controllers['firstName']!.text,
       'lastName': controllers['lastName']!.text,
       'email': controllers['email']!.text,
@@ -171,7 +182,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'location': controllers['location']!.text,
       'gender': gender,
       'photoPath': _photoPath,
-    });
+    };
+
+    try {
+      // Сохраняем данные в Firestore, если пользователь не Гость
+      if (user != null && !user.isAnonymous) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set(updatedData, SetOptions(merge: true));
+      }
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        // Возвращаем данные на предыдущий экран, чтобы интерфейс обновился
+        Navigator.pop(context, updatedData);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -262,13 +296,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                         ),
                                       ),
                                       child: ClipOval(
+                                        // ИСПРАВЛЕНА ОШИБКА IMAGE.FILE ДЛЯ WEB!
                                         child: _photoPath != null && _photoPath!.isNotEmpty
-                                            ? Image.file(
-                                                File(_photoPath!),
-                                                fit: BoxFit.cover,
-                                                width: 84,
-                                                height: 84,
-                                              )
+                                            ? (kIsWeb 
+                                                ? Image.network(
+                                                    _photoPath!,
+                                                    fit: BoxFit.cover,
+                                                    width: 84,
+                                                    height: 84,
+                                                  )
+                                                : Image.file(
+                                                    File(_photoPath!),
+                                                    fit: BoxFit.cover,
+                                                    width: 84,
+                                                    height: 84,
+                                                  ))
                                             : Center(
                                                 child: Text(
                                                   '${controllers['firstName']!.text.isNotEmpty ? controllers['firstName']!.text[0] : 'J'}${controllers['lastName']!.text.isNotEmpty ? controllers['lastName']!.text[0] : 'D'}',
@@ -378,15 +420,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           backgroundColor: const Color(0xFF2ECC71),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        onPressed: _saveChanges,
-                        child: Text(
-                          'SAVE CHANGES',
-                          style: GoogleFonts.lato(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                          ),
-                        ),
+                        onPressed: _isSaving ? null : _saveChanges,
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : Text(
+                                'SAVE CHANGES',
+                                style: GoogleFonts.lato(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ],

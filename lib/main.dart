@@ -5,6 +5,8 @@ import 'firebase_options.dart';
 import 'auth_screen.dart'; 
 import 'widgets/bottom_nav.dart'; 
 
+// Импорты остальных экранов:
+import 'screens/register_screen.dart'; // <-- 1. ДОБАВИЛИ ИМПОРТ ЭКРАНА РЕГИСТРАЦИИ
 import 'screens/converter_screen.dart';
 import 'screens/compare_screen.dart';
 import 'screens/camera_scan_screen.dart';
@@ -40,6 +42,8 @@ class FreshScanApp extends StatelessWidget {
       
       routes: {
         '/home': (context) => const BottomNavBar(),
+        
+        '/register': (context) => const RegisterScreen(), // <-- 2. ДОБАВИЛИ МАРШРУТ
         
         '/converter': (context) => const ConverterScreen(),
         '/compare': (context) => const CompareScreen(),
