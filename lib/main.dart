@@ -14,6 +14,7 @@ import 'screens/recipes_screen.dart';
 import 'screens/result_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/saved_products_screen.dart';
+import 'screens/forgot_password_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +45,7 @@ class FreshScanApp extends StatelessWidget {
         '/home': (context) => const BottomNavBar(),
         
         '/register': (context) => const RegisterScreen(), 
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
         
         '/converter': (context) => const ConverterScreen(),
         '/compare': (context) => const CompareScreen(),

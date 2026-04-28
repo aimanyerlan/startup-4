@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_app/widgets/layout.dart';
 // 1. Подключаем Firebase Auth
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -88,10 +89,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     // 2. НАСТОЯЩАЯ РЕГИСТРАЦИЯ В FIREBASE
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      final user = credential.user;
+      if (user != null) {
+        final nameParts = name.split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+        final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+        final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+        await user.updateDisplayName(name);
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'firstName': firstName,
+          'lastName': lastName,
+          'email': email,
+          'phone': '',
+          'birthday': '',
+          'location': '',
+          'gender': 'male',
+          'photoPath': null,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
       
       // Если регистрация прошла успешно:
       if (mounted) {

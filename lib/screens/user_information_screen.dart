@@ -1,12 +1,8 @@
-import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-
-import 'package:flutter/foundation.dart'; 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 class UserInformationScreen extends StatefulWidget {
   const UserInformationScreen({super.key});
@@ -17,8 +13,56 @@ class UserInformationScreen extends StatefulWidget {
 
 class _UserInformationScreenState extends State<UserInformationScreen> {
   bool _isLoading = true;
+  bool _isSaving = false;
 
-  // Данные по умолчанию (пока грузится Firebase)
+  final RegExp _phoneRegex = RegExp(r'^\+7\d{10}$');
+  final List<String> _kzCities = const [
+    'Almaty',
+    'Astana',
+    'Shymkent',
+    'Aktobe',
+    'Karaganda',
+    'Taraz',
+    'Pavlodar',
+    'Oskemen',
+    'Semey',
+    'Atyrau',
+    'Kostanay',
+    'Kyzylorda',
+    'Uralsk',
+    'Petropavl',
+    'Aktau',
+    'Turkistan',
+    'Kokshetau',
+    'Taldykorgan',
+    'Ekibastuz',
+    'Rudny',
+    'Zhezkazgan',
+  ];
+
+  final List<Map<String, String>> _dietaryOptions = const [
+    {
+      'value': 'Standard',
+      'title': 'Standard (with meat)',
+      'subtitle': 'I have no dietary preferences',
+    },
+    {
+      'value': 'Pescatarian',
+      'title': 'Pescatarian',
+      'subtitle': 'I eat seafood but not meat',
+    },
+    {
+      'value': 'Vegetarian',
+      'title': 'Vegetarian',
+      'subtitle': "I don't eat meat or seafood",
+    },
+    {
+      'value': 'Vegan',
+      'title': 'Vegan',
+      'subtitle': "I don't eat any animal products",
+    },
+  ];
+
   Map<String, dynamic> _userData = {
     'firstName': '',
     'lastName': '',
@@ -26,8 +70,9 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
     'phone': '',
     'birthday': '',
     'location': '',
-    'photoPath': null,
-    'creationTime': 'Unknown',
+    'gender': 'female',
+    'dietaryPreference': 'Standard',
+    'allergies': <String>[],
   };
 
   @override
@@ -38,76 +83,379 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
 
   Future<void> _fetchUserData() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      if (user.isAnonymous) {
-        setState(() {
-          _userData['firstName'] = 'Guest';
-          _userData['email'] = 'Anonymous User';
-          _userData['creationTime'] = 'Session started today';
-          _isLoading = false;
-        });
-      } else {
-        try {
-          // Получаем дату создания аккаунта
-          String creationDate = 'Unknown';
-          if (user.metadata.creationTime != null) {
-            creationDate = DateFormat('MMMM yyyy').format(user.metadata.creationTime!);
-          }
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
-          // Идем в базу данных
-          final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-          
-          if (mounted) {
-            setState(() {
-              if (doc.exists && doc.data() != null) {
-                final data = doc.data()!;
-                _userData['firstName'] = data['firstName'] ?? '';
-                _userData['lastName'] = data['lastName'] ?? '';
-                _userData['phone'] = data['phone'] ?? 'Not set';
-                _userData['birthday'] = data['birthday'] ?? 'Not set';
-                _userData['location'] = data['location'] ?? 'Not set';
-                _userData['photoPath'] = data['photoPath'];
-              }
-              _userData['email'] = user.email ?? 'No email';
-              _userData['creationTime'] = creationDate;
-              _isLoading = false;
-            });
-          }
-        } catch (e) {
-          if (mounted) setState(() => _isLoading = false);
-        }
+    if (user.isAnonymous) {
+      setState(() {
+        _userData['firstName'] = 'Guest';
+        _userData['email'] = 'Anonymous user';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = doc.data() ?? <String, dynamic>{};
+
+      var firstName = (data['firstName'] ?? '').toString();
+      var lastName = (data['lastName'] ?? '').toString();
+      if (firstName.isEmpty &&
+          lastName.isEmpty &&
+          (user.displayName ?? '').trim().isNotEmpty) {
+        final parts = user.displayName!
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .toList();
+        firstName = parts.isNotEmpty ? parts.first : '';
+        lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
       }
-    } else {
-      if (mounted) setState(() => _isLoading = false);
+
+      final allergiesRaw = data['allergies'];
+      final allergies = allergiesRaw is List
+          ? allergiesRaw.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList()
+          : <String>[];
+
+      final authEmail = user.email ?? '';
+      if (authEmail.isNotEmpty && (data['email'] ?? '').toString().trim().isEmpty) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+          {
+            'email': authEmail,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _userData = {
+          ..._userData,
+          'firstName': firstName,
+          'lastName': lastName,
+          'email': authEmail,
+          'phone': (data['phone'] ?? '').toString(),
+          'birthday': (data['birthday'] ?? '').toString(),
+          'location': (data['location'] ?? '').toString(),
+          'gender': (data['gender'] ?? 'female').toString(),
+          'dietaryPreference': (data['dietaryPreference'] ?? 'Standard').toString(),
+          'allergies': allergies,
+        };
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
-  String getInitials() {
-    String first = _userData['firstName']?.isNotEmpty == true ? _userData['firstName'][0] : '';
-    String last = _userData['lastName']?.isNotEmpty == true ? _userData['lastName'][0] : '';
-    String initials = (first + last).toUpperCase();
-    return initials.isEmpty ? '?' : initials;
+  Future<void> _savePatch(Map<String, dynamic> patch) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final authEmail = user.email ?? '';
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+            {
+              ...patch,
+              if (authEmail.isNotEmpty) 'email': authEmail,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+      if (!mounted) return;
+      setState(() {
+        patch.forEach((key, value) => _userData[key] = value);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
-  // --- ДИНАМИЧЕСКИЙ СПИСОК ИНФОРМАЦИИ ---
-  List<Map<String, dynamic>> get _userInfoList {
-    return [
-      {'icon': Icons.person, 'label': 'First Name', 'value': _userData['firstName'].toString().isEmpty ? 'Not set' : _userData['firstName']},
-      {'icon': Icons.person, 'label': 'Last Name', 'value': _userData['lastName'].toString().isEmpty ? 'Not set' : _userData['lastName']},
-      {'icon': Icons.mail_outline, 'label': 'Email', 'value': _userData['email']},
-      {'icon': Icons.phone, 'label': 'Phone', 'value': _userData['phone']},
-      {'icon': Icons.calendar_today, 'label': 'Birthday', 'value': _userData['birthday']},
-      {'icon': Icons.location_on, 'label': 'Location', 'value': _userData['location']},
-      {'icon': Icons.access_time, 'label': 'Member Since', 'value': _userData['creationTime']},
-      {'icon': Icons.star, 'label': 'Membership Type', 'value': FirebaseAuth.instance.currentUser?.isAnonymous == true ? 'Guest' : 'Standard Member'},
-    ];
+  String _displayValue(String key) {
+    final value = (_userData[key] ?? '').toString().trim();
+    if (value.isEmpty) return 'enter';
+    return value;
   }
 
-  Widget _buildInitialsAvatar() {
-    return Center(
-      child: Text(
-        getInitials(),
-        style: GoogleFonts.lato(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
+  String _displayBirthday() {
+    final value = (_userData['birthday'] ?? '').toString().trim();
+    if (value.isEmpty) return 'enter';
+    try {
+      final date = DateFormat('dd.MM.yyyy').parseStrict(value);
+      return DateFormat('d MMMM yyyy').format(date);
+    } catch (_) {
+      return value;
+    }
+  }
+
+  String _displayGender() {
+    final value = (_userData['gender'] ?? '').toString();
+    if (value == 'male') return 'Male';
+    if (value == 'female') return 'Female';
+    if (value == 'other') return 'Other';
+    return 'enter';
+  }
+
+  String _displayDietary() {
+    final current = (_userData['dietaryPreference'] ?? 'Standard').toString();
+    final match = _dietaryOptions.firstWhere(
+      (item) => item['value'] == current,
+      orElse: () => _dietaryOptions.first,
+    );
+    return match['title'] ?? 'Standard (with meat)';
+  }
+
+  String _displayAllergiesShort() {
+    final allergies = ((_userData['allergies'] as List?) ?? const [])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (allergies.isEmpty) return 'enter';
+    return allergies.join(', ');
+  }
+
+  Future<void> _editSimpleField({
+    required String title,
+    required String keyName,
+    String hint = '',
+  }) async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SingleValueEditScreen(
+          title: title,
+          initialValue: (_userData[keyName] ?? '').toString(),
+          hintText: hint,
+        ),
+      ),
+    );
+    if (result == null) return;
+    if (result.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$title is required'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    await _savePatch({keyName: result.trim()});
+  }
+
+  Future<void> _editPhone() async {
+    final existing = (_userData['phone'] ?? '').toString();
+    final digitsOnly = existing.replaceAll(RegExp(r'\D'), '');
+    final normalized = digitsOnly.startsWith('7') ? digitsOnly.substring(1) : digitsOnly;
+    final initialPhone = '+7${normalized.length > 10 ? normalized.substring(0, 10) : normalized}';
+
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SingleValueEditScreen(
+          title: 'Phone',
+          initialValue: initialPhone,
+          hintText: '+7XXXXXXXXXX',
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[\d+]')),
+            TextInputFormatter.withFunction((oldValue, newValue) {
+              var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+              if (digits.startsWith('7')) digits = digits.substring(1);
+              if (digits.length > 10) digits = digits.substring(0, 10);
+              final next = '+7$digits';
+              return TextEditingValue(
+                text: next,
+                selection: TextSelection.collapsed(offset: next.length),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+    if (!_phoneRegex.hasMatch(result.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Phone must start with +7 and contain 10 digits'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    await _savePatch({'phone': result.trim()});
+  }
+
+  Future<void> _editBirthday() async {
+    final now = DateTime.now();
+    DateTime initialDate = DateTime(now.year - 18, 1, 1);
+    final existing = (_userData['birthday'] ?? '').toString().trim();
+    if (existing.isNotEmpty) {
+      try {
+        initialDate = DateFormat('dd.MM.yyyy').parseStrict(existing);
+      } catch (_) {}
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1900),
+      lastDate: now,
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: 'Select birthday',
+    );
+    if (picked == null) return;
+    await _savePatch({'birthday': DateFormat('dd.MM.yyyy').format(picked)});
+  }
+
+  Future<void> _selectOption({
+    required String title,
+    required String keyName,
+    required List<String> options,
+  }) async {
+    final current = (_userData[keyName] ?? '').toString();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ...options.map(
+              (option) => ListTile(
+                title: Text(option),
+                trailing: option == current
+                    ? const Icon(Icons.check, color: Color(0xFF2ECC71))
+                    : null,
+                onTap: () => Navigator.pop(context, option),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await _savePatch({keyName: selected});
+  }
+
+  Future<void> _selectCity() async {
+    final selected = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _CitySelectScreen(
+          cities: _kzCities,
+          selectedCity: (_userData['location'] ?? '').toString(),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await _savePatch({'location': selected});
+  }
+
+  Future<void> _selectDietaryPreference() async {
+    final current = (_userData['dietaryPreference'] ?? 'Standard').toString();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            const Text(
+              'Dietary Preference',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            ..._dietaryOptions.map(
+              (option) => ListTile(
+                title: Text(option['title']!),
+                subtitle: Text(option['subtitle']!),
+                trailing: option['value'] == current
+                    ? const Icon(Icons.check, color: Color(0xFF2ECC71))
+                    : null,
+                onTap: () => Navigator.pop(context, option['value']),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await _savePatch({'dietaryPreference': selected});
+  }
+
+  Future<void> _editAllergies() async {
+    final current = ((_userData['allergies'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .where((e) => e.trim().isNotEmpty)
+        .toList();
+
+    final result = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AllergiesEditScreen(initialValues: current),
+      ),
+    );
+    if (result == null) return;
+    await _savePatch({'allergies': result});
+  }
+
+  Widget _buildRow({
+    required String title,
+    required String value,
+    VoidCallback? onTap,
+    bool showArrow = true,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 58,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 17, color: Color(0xFF263238)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 17, color: Color(0xFF757575)),
+                ),
+              ),
+            ),
+            if (showArrow) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right, color: Color(0xFFBDBDBD)),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -115,156 +463,340 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      body: SafeArea(
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2ECC71))) 
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  _buildProfilePhotoSection(),
-                  _buildUserInformationList(),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey.shade50),
-                  child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+      backgroundColor: const Color(0xFFF2F4F7),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: const Color(0xFFF2F4F7),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: [
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2ECC71)))
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ListView(
+                  padding: EdgeInsets.zero,
                   children: [
-                    Text(
-                      'User Information',
-                      style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87),
+                    _buildRow(
+                      title: 'First Name',
+                      value: _displayValue('firstName'),
+                      onTap: () => _editSimpleField(
+                        title: 'First Name',
+                        keyName: 'firstName',
+                        hint: 'Enter first name',
+                      ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Your profile details',
-                      style: GoogleFonts.lato(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Last Name',
+                      value: _displayValue('lastName'),
+                      onTap: () => _editSimpleField(
+                        title: 'Last Name',
+                        keyName: 'lastName',
+                        hint: 'Enter last name',
+                      ),
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Email',
+                      value: _displayValue('email'),
+                      showArrow: false,
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Phone',
+                      value: _displayValue('phone'),
+                      onTap: _editPhone,
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'City / Region',
+                      value: _displayValue('location'),
+                      onTap: _selectCity,
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Sex',
+                      value: _displayGender(),
+                      onTap: () => _selectOption(
+                        title: 'Select sex',
+                        keyName: 'gender',
+                        options: const ['male', 'female'],
+                      ),
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Dietary Preference',
+                      value: _displayDietary(),
+                      onTap: _selectDietaryPreference,
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Date of Birth',
+                      value: _displayBirthday(),
+                      onTap: _editBirthday,
+                    ),
+                    Divider(height: 1, color: Colors.grey.shade300),
+                    _buildRow(
+                      title: 'Allergic',
+                      value: _displayAllergiesShort(),
+                      onTap: _editAllergies,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfilePhotoSection() {
-    final photoPath = _userData['photoPath'];
-    
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      width: double.infinity,
-      child: Center(
-        child: Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
             ),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, 4)),
-            ],
-          ),
-          child: ClipOval(
-            child: photoPath != null && photoPath.toString().isNotEmpty
-                ? (kIsWeb
-                    ? Image.network(photoPath, fit: BoxFit.cover, width: 96, height: 96, errorBuilder: (c, e, s) => _buildInitialsAvatar())
-                    : Image.file(File(photoPath), fit: BoxFit.cover, width: 96, height: 96, errorBuilder: (c, e, s) => _buildInitialsAvatar()))
-                : _buildInitialsAvatar(),
-          ),
+    );
+  }
+}
+
+class _SingleValueEditScreen extends StatefulWidget {
+  final String title;
+  final String initialValue;
+  final String hintText;
+  final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+
+  const _SingleValueEditScreen({
+    required this.title,
+    required this.initialValue,
+    required this.hintText,
+    this.keyboardType = TextInputType.text,
+    this.inputFormatters,
+  });
+
+  @override
+  State<_SingleValueEditScreen> createState() => _SingleValueEditScreenState();
+}
+
+class _SingleValueEditScreenState extends State<_SingleValueEditScreen> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F4F7),
+      appBar: AppBar(
+        title: Text(widget.title),
+        backgroundColor: const Color(0xFFF2F4F7),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              keyboardType: widget.keyboardType,
+              inputFormatters: widget.inputFormatters,
+              decoration: InputDecoration(
+                hintText: widget.hintText,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, _controller.text),
+                child: const Text('Save'),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildUserInformationList() {
-    final items = _userInfoList;
+class _AllergiesEditScreen extends StatefulWidget {
+  final List<String> initialValues;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade200, width: 1),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          separatorBuilder: (context, index) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(height: 1, color: Colors.grey.shade200),
-          ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
-                    child: Center(child: Icon(item['icon'], size: 20, color: Colors.grey.shade600)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['label'],
-                          style: GoogleFonts.lato(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
+  const _AllergiesEditScreen({required this.initialValues});
+
+  @override
+  State<_AllergiesEditScreen> createState() => _AllergiesEditScreenState();
+}
+
+class _CitySelectScreen extends StatelessWidget {
+  final List<String> cities;
+  final String selectedCity;
+
+  const _CitySelectScreen({
+    required this.cities,
+    required this.selectedCity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F4F7),
+      appBar: AppBar(
+        title: const Text('Select City'),
+        backgroundColor: const Color(0xFFF2F4F7),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      body: ListView.separated(
+        itemCount: cities.length,
+        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade300),
+        itemBuilder: (context, index) {
+          final city = cities[index];
+          return ListTile(
+            title: Text(city),
+            trailing: city == selectedCity
+                ? const Icon(Icons.check, color: Color(0xFF2ECC71))
+                : null,
+            onTap: () => Navigator.pop(context, city),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
+  late List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = widget.initialValues
+        .map((value) => TextEditingController(text: value))
+        .toList();
+    if (_controllers.isEmpty) {
+      _controllers = [TextEditingController()];
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addRow() {
+    setState(() {
+      _controllers.add(TextEditingController());
+    });
+  }
+
+  void _removeRow(int index) {
+    if (_controllers.length == 1) return;
+    setState(() {
+      final removed = _controllers.removeAt(index);
+      removed.dispose();
+    });
+  }
+
+  void _save() {
+    final data = _controllers
+        .map((c) => c.text.trim())
+        .where((text) => text.isNotEmpty)
+        .toList();
+    Navigator.pop(context, data);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F4F7),
+      appBar: AppBar(
+        title: const Text('Allergic'),
+        backgroundColor: const Color(0xFFF2F4F7),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.separated(
+                itemCount: _controllers.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controllers[index],
+                          decoration: InputDecoration(
+                            hintText: 'Allergy ${index + 1}',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item['value'].toString(),
-                          style: GoogleFonts.lato(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                      IconButton(
+                        onPressed: _controllers.length == 1 ? null : () => _removeRow(index),
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
+                    ],
+                  );
+                },
               ),
-            );
-          },
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addRow,
+                icon: const Icon(Icons.add),
+                label: const Text('Add allergy'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _save,
+                child: const Text('Save'),
+              ),
+            ),
+          ],
         ),
       ),
     );

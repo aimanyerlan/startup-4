@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:my_app/screens/user_information_screen.dart';
 import 'package:my_app/screens/change_password_screen.dart';
-import 'package:my_app/screens/edit_profile_screen.dart';
 import 'package:my_app/widgets/layout.dart';
 
 import 'package:flutter/foundation.dart'; 
@@ -66,8 +65,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (doc.exists && doc.data() != null) {
           final data = doc.data()!;
           setState(() {
-            profileData['firstName'] = data['firstName'] ?? '';
-            profileData['lastName'] = data['lastName'] ?? '';
+            final currentFirstName = (data['firstName'] ?? '').toString();
+            final currentLastName = (data['lastName'] ?? '').toString();
+            if (currentFirstName.isEmpty &&
+                currentLastName.isEmpty &&
+                (user.displayName ?? '').trim().isNotEmpty) {
+              final parts = user.displayName!
+                  .trim()
+                  .split(RegExp(r'\s+'))
+                  .where((part) => part.isNotEmpty)
+                  .toList();
+              profileData['firstName'] = parts.isNotEmpty ? parts.first : '';
+              profileData['lastName'] = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+            } else {
+              profileData['firstName'] = currentFirstName;
+              profileData['lastName'] = currentLastName;
+            }
             profileData['phone'] = data['phone'] ?? '';
             profileData['birthday'] = data['birthday'] ?? '';
             profileData['location'] = data['location'] ?? '';
@@ -94,35 +107,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String last = profileData['lastName']?.isNotEmpty == true ? profileData['lastName'][0] : '';
     String initials = (first + last).toUpperCase();
     return initials.isEmpty ? '?' : initials;
-  }
-
-  Future<void> _openEditProfileScreen() async {
-    final updatedProfile = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditProfileScreen(
-          initialData: Map<String, dynamic>.from(profileData),
-        ),
-      ),
-    );
-
-    if (updatedProfile == null) return;
-
-    setState(() {
-      profileData['firstName'] = (updatedProfile['firstName'] ?? '').toString();
-      profileData['lastName'] = (updatedProfile['lastName'] ?? '').toString();
-      profileData['email'] = (updatedProfile['email'] ?? '').toString();
-      profileData['phone'] = (updatedProfile['phone'] ?? '').toString();
-      profileData['birthday'] = (updatedProfile['birthday'] ?? '').toString();
-      profileData['location'] = (updatedProfile['location'] ?? '').toString();
-      profileData['gender'] = (updatedProfile['gender'] ?? gender).toString();
-      profileData['photoPath'] = updatedProfile['photoPath'];
-      gender = profileData['gender'];
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated successfully!')),
-    );
   }
 
   void _showLogoutConfirmation() {
@@ -280,7 +264,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                isLoading ? 'Загрузка...' : '${profileData['firstName']} ${profileData['lastName']}'.trim(),
+                                isLoading
+                                    ? 'Загрузка...'
+                                    : ('${profileData['firstName']} ${profileData['lastName']}'.trim().isEmpty
+                                        ? (FirebaseAuth.instance.currentUser?.displayName?.trim().isNotEmpty == true
+                                            ? FirebaseAuth.instance.currentUser!.displayName!.trim()
+                                            : 'Не указано')
+                                        : '${profileData['firstName']} ${profileData['lastName']}'.trim()),
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                               ),
                             ],
@@ -321,11 +311,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildMenuItem(
               title: 'Personal Information',
               icon: Icons.info_outline,
-              onTap: () {
-                Navigator.push(
+              onTap: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const UserInformationScreen()),
                 );
+                _loadUserData();
               },
             ),
             const SizedBox(height: 12),
@@ -340,11 +331,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 12),
-            _buildMenuItem(
-              title: 'Edit Profile',
-              icon: Icons.edit_outlined,
-              onTap: _openEditProfileScreen,
-            ),
             const SizedBox(height: 32),
 
             SizedBox(

@@ -148,6 +148,20 @@ class _AuthScreenState extends State<AuthScreen> {
                 onPressed: loginAsGuest, 
                 child: const Text('Continue as Guest', style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold)),
               ),
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+                  child: const Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      color: Color(0xFF2ECC71),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
               
               Row(
                 children: [

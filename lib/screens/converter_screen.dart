@@ -134,11 +134,14 @@ class _ConverterScreenState extends State<ConverterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Layout(
-      showNav: true,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Layout(
+        showNav: true,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // header
@@ -195,6 +198,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
                     TextField(
                       controller: _amountController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                       ],
@@ -327,6 +331,7 @@ class _ConverterScreenState extends State<ConverterScreen> {
               ),
               const SizedBox(height: 40),
             ],
+            ),
           ),
         ),
       ),
