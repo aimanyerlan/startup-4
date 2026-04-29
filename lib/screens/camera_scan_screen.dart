@@ -1,39 +1,30 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:my_app/widgets/layout.dart'; 
 import 'package:camera/camera.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:flutter/services.dart'; 
+import 'package:my_app/widgets/layout.dart';
+import 'package:flutter/services.dart';
 
 const Color _emerald = Color(0xFF10B981);
 
 class CameraScanScreen extends StatefulWidget {
-  const CameraScanScreen({super.key});
+  final VoidCallback? onBackToHome;
+
+  const CameraScanScreen({super.key, this.onBackToHome});
 
   @override
   State<CameraScanScreen> createState() => _CameraScanScreenState();
 }
 
-class _CameraScanScreenState extends State<CameraScanScreen> with TickerProviderStateMixin {
+class _CameraScanScreenState extends State<CameraScanScreen> {
   CameraController? _cameraController;
-  final TextRecognizer _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
   bool _isCameraInitialized = false;
-  bool _isProcessingFrame = false;
-  bool _isScanning = false;
-  
-  // Переменная для отслеживания состояния вспышки
   bool _isFlashOn = false;
-
-  late AnimationController _lineController;
-  late AnimationController _pulseController;
+  bool _isTakingPicture = false;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
-    _lineController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 1));
   }
 
   Future<void> _initializeCamera() async {
@@ -42,7 +33,7 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
 
     _cameraController = CameraController(
       cameras[0],
-      ResolutionPreset.max,
+      ResolutionPreset.max, // Максимальное качество для Cloud Vision
       enableAudio: false,
     );
 
@@ -52,11 +43,10 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
       
       if (mounted) setState(() => _isCameraInitialized = true);
     } catch (e) {
-      debugPrint("Ошибка камеры: $e");
+      debugPrint("Camera error: $e");
     }
   }
 
-  // Метод переключения вспышки
   Future<void> _toggleFlash() async {
     if (!_isCameraInitialized || _cameraController == null) return;
     
@@ -68,80 +58,43 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
       }
       setState(() => _isFlashOn = !_isFlashOn);
     } catch (e) {
-      debugPrint("Ошибка вспышки: $e");
+      debugPrint("Flash toggle error: $e");
+    }
+  }
+
+  Future<void> _takePicture() async {
+    if (!_isCameraInitialized || _cameraController == null || _isTakingPicture) return;
+
+    setState(() => _isTakingPicture = true);
+    try {
+      await HapticFeedback.mediumImpact();
+      final XFile image = await _cameraController!.takePicture();
+      
+      if (mounted) {
+        // Передаем путь к файлу на экран результатов
+        Navigator.of(context).pushReplacementNamed(
+          '/results',
+          arguments: {'imagePath': image.path},
+        );
+      }
+    } catch (e) {
+      debugPrint("Take picture error: $e");
+      if (mounted) setState(() => _isTakingPicture = false);
     }
   }
 
   @override
   void dispose() {
     _cameraController?.dispose();
-    _textRecognizer.close();
-    _lineController.dispose();
-    _pulseController.dispose();
     super.dispose();
   }
 
   Future<void> _handleBack() async {
-    if (_isScanning) _stopScanning();
-    if (Navigator.canPop(context)) Navigator.pop(context);
-  }
-
-  void _startScanning() {
-    setState(() {
-      _isScanning = true;
-    });
-    _lineController.repeat();
-    _pulseController.repeat();
-    _cameraController?.startImageStream(_processCameraImage);
-  }
-
-  void _stopScanning() {
-    _cameraController?.stopImageStream();
-    _lineController.stop();
-    _pulseController.stop();
-    setState(() => _isScanning = false);
-  }
-
-  Future<void> _processCameraImage(CameraImage image) async {
-    if (_isProcessingFrame || !_isScanning) return;
-    _isProcessingFrame = true;
-
-    try {
-      final inputImage = _convertCameraImage(image);
-      final recognizedText = await _textRecognizer.processImage(inputImage);
-
-      String structuredText = recognizedText.blocks.map((b) => b.text).join('\n---\n');
-
-      if (structuredText.length > 40) { 
-        await HapticFeedback.heavyImpact();
-        _stopScanning();
-
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed(
-            '/results',
-            arguments: {'fullText': structuredText},
-          );
-        }
-      }
-    } finally {
-      _isProcessingFrame = false;
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+      return;
     }
-  }
-
-  InputImage _convertCameraImage(CameraImage image) {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    return InputImage.fromBytes(
-      bytes: allBytes.done().buffer.asUint8List(),
-      metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: InputImageRotation.rotation90deg, 
-        format: InputImageFormat.bgra8888,
-        bytesPerRow: image.planes[0].bytesPerRow,
-      ),
-    );
+    widget.onBackToHome?.call();
   }
 
   @override
@@ -194,7 +147,6 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: _handleBack,
                   ),
-                  // Кнопка вспышки
                   IconButton(
                     icon: Icon(
                       _isFlashOn ? Icons.flash_on : Icons.flash_off, 
@@ -219,7 +171,7 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
           alignment: Alignment.center,
           children: [
             Container(
-              width: 300, height: 320,
+              width: 300, height: 400,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(40),
@@ -229,20 +181,12 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
             _cornerMarker(Alignment.topRight, isRight: true),
             _cornerMarker(Alignment.bottomLeft, isBottom: true),
             _cornerMarker(Alignment.bottomRight, isRight: true, isBottom: true),
-            if (_isScanning)
-              AnimatedBuilder(
-                animation: _lineController,
-                builder: (context, _) => Positioned(
-                  top: 320 * _lineController.value,
-                  child: Container(width: 300, height: 2, color: _emerald),
-                ),
-              ),
           ],
         ),
         const SizedBox(height: 20),
-        Text(
-          _isScanning ? "Анализируем..." : "Наведите на состав",
-          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+        const Text(
+          "Point at the ingredient list and capture",
+          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -270,27 +214,27 @@ class _CameraScanScreenState extends State<CameraScanScreen> with TickerProvider
     return Padding(
       padding: const EdgeInsets.only(bottom: 40),
       child: GestureDetector(
-        onTap: _isScanning ? null : _startScanning,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (_isScanning)
-              AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, _) => Transform.scale(
-                  scale: 1.0 + 0.5 * _pulseController.value,
-                  child: Opacity(
-                    opacity: 1 - _pulseController.value,
-                    child: Container(width: 80, height: 80, decoration: const BoxDecoration(color: _emerald, shape: BoxShape.circle)),
+        onTap: _takePicture,
+        child: Container(
+          width: 80, height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white, 
+            shape: BoxShape.circle, 
+            border: Border.all(color: Colors.grey.shade300, width: 4)
+          ),
+          child: _isTakingPicture 
+              ? const Center(child: CircularProgressIndicator(color: _emerald)) 
+              : Center(
+                  child: Container(
+                    width: 65, 
+                    height: 65, 
+                    decoration: const BoxDecoration(
+                      color: Colors.white, 
+                      shape: BoxShape.circle, 
+                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]
+                    ),
                   ),
                 ),
-              ),
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black, width: 2)),
-              child: _isScanning ? const Center(child: CircularProgressIndicator(color: _emerald)) : null,
-            ),
-          ],
         ),
       ),
     );

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:my_app/widgets/layout.dart'; // Проверь, правильный ли у тебя тут путь
+import 'package:my_app/widgets/layout.dart';
 
-// Подключаем магию Firebase:
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -14,12 +13,6 @@ class SavedProductsScreen extends StatefulWidget {
 }
 
 class _SavedProductsScreenState extends State<SavedProductsScreen> {
-  
-  // Узнаем, кто сейчас в приложении и гость ли он
-  final User? currentUser = FirebaseAuth.instance.currentUser;
-  bool get isGuest => currentUser == null || currentUser!.isAnonymous;
-
-  // Твоя шикарная функция для определения цветов иконок осталась без изменений!
   Map<String, dynamic> _getProductStyle(String name) {
     final lower = name.toLowerCase();
     
@@ -75,26 +68,25 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
     };
   }
 
-  // Новая функция: Удаление продукта из Firebase
-  Future<void> _deleteProduct(String docId) async {
-    if (currentUser != null) {
+  Future<void> _deleteProduct(String docId, String uid) async {
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser!.uid)
+          .doc(uid)
           .collection('saved_scans')
           .doc(docId)
           .delete();
           
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Продукт удален'), duration: Duration(seconds: 2)),
+          const SnackBar(content: Text('Product removed'), duration: Duration(seconds: 2)),
         );
       }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isGuest = currentUser == null || currentUser.isAnonymous;
     return Layout(
       showNav: true,
       child: Scaffold(
@@ -102,7 +94,6 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // Header
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 decoration: const BoxDecoration(
@@ -126,11 +117,10 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
                 ),
               ),
 
-              // Content
               Expanded(
                 child: isGuest
                     ? _buildGuestState(context)
-                    : _buildProductsList(context),
+                    : _buildProductsList(context, currentUser!.uid),
               )
             ],
           ),
@@ -164,7 +154,7 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Войдите, чтобы сохранять продукты.',
+              'Sign in to save products.',
               style: GoogleFonts.lato(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -190,29 +180,24 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
     );
   }
 
-  // --- ВОТ ТУТ ПРОИСХОДИТ МАГИЯ FIREBASE ---
-  Widget _buildProductsList(BuildContext context) {
+  Widget _buildProductsList(BuildContext context, String uid) {
     return StreamBuilder<QuerySnapshot>(
-      // Подключаемся к базе и сортируем продукты от самых новых к старым
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser!.uid)
+          .doc(uid)
           .collection('saved_scans')
           .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         
-        // 1. Пока данные скачиваются из интернета
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF2ECC71)));
         }
 
-        // 2. Если что-то пошло не так
         if (snapshot.hasError) {
-          return Center(child: Text('Ошибка загрузки: ${snapshot.error}'));
+          return Center(child: Text('Loading error: ${snapshot.error}'));
         }
 
-        // 3. Если база пустая (пользователь еще ничего не сканировал)
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Column(
@@ -221,7 +206,7 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
                 Icon(Icons.bookmark_border, size: 64, color: Colors.grey.shade300),
                 const SizedBox(height: 16),
                 Text(
-                  'Нет сохраненных продуктов',
+                  'No saved products',
                   style: GoogleFonts.lato(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w600),
                 ),
               ],
@@ -229,7 +214,6 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
           );
         }
 
-        // 4. Ура! Данные есть. Берем их и строим список.
         final docs = snapshot.data!.docs;
 
         return SingleChildScrollView(
@@ -237,15 +221,11 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
           child: Column(
             children: docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
-              final docId = doc.id; // Уникальный ID продукта в базе
-              
-              // Вытаскиваем значения из Firebase
-              final productName = data['productName'] ?? 'Неизвестный продукт';
+              final docId = doc.id;
+              final productName = data['productName'] ?? 'Unknown product';
               final calories = data['calories'] ?? '-- kcal';
               final rawStatus = data['status'] ?? 'CHECK';
               final status = rawStatus == 'SAFE TO CONSUME' ? 'safe' : 'warning';
-              
-              // Подбираем цвета с помощью твоей функции
               final style = _getProductStyle(productName);
 
               return Padding(
@@ -255,8 +235,8 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
                     context,
                     '/results',
                     arguments: {
+                      ...data,
                       'source': 'saved',
-                      'productName': productName,
                     },
                   ),
                   child: Container(
@@ -319,10 +299,9 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
                           ),
                         ),
                         GestureDetector(
-                          // Кнопка удаления!
-                          onTap: () => _deleteProduct(docId),
+                          onTap: () => _deleteProduct(docId, uid),
                           child: const Icon(
-                            Icons.bookmark, // Закладка всегда зеленая, так как продукт сохранен
+                            Icons.bookmark,
                             color: Color(0xFF2ECC71),
                             size: 24,
                           ),

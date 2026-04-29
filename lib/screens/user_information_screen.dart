@@ -694,6 +694,7 @@ class _CitySelectScreen extends StatelessWidget {
 
 class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
   late List<TextEditingController> _controllers;
+  late List<FocusNode> _focusNodes;
 
   @override
   void initState() {
@@ -704,6 +705,7 @@ class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
     if (_controllers.isEmpty) {
       _controllers = [TextEditingController()];
     }
+    _focusNodes = List.generate(_controllers.length, (_) => FocusNode());
   }
 
   @override
@@ -711,20 +713,30 @@ class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
     for (final controller in _controllers) {
       controller.dispose();
     }
+    for (final focusNode in _focusNodes) {
+      focusNode.dispose();
+    }
     super.dispose();
   }
 
   void _addRow() {
+    final focusNode = FocusNode();
     setState(() {
       _controllers.add(TextEditingController());
+      _focusNodes.add(focusNode);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(focusNode);
     });
   }
 
   void _removeRow(int index) {
-    if (_controllers.length == 1) return;
     setState(() {
       final removed = _controllers.removeAt(index);
       removed.dispose();
+      final removedFocus = _focusNodes.removeAt(index);
+      removedFocus.dispose();
     });
   }
 
@@ -760,6 +772,7 @@ class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
                       Expanded(
                         child: TextField(
                           controller: _controllers[index],
+                          focusNode: _focusNodes[index],
                           decoration: InputDecoration(
                             hintText: 'Allergy ${index + 1}',
                             filled: true,
@@ -772,7 +785,7 @@ class _AllergiesEditScreenState extends State<_AllergiesEditScreen> {
                         ),
                       ),
                       IconButton(
-                        onPressed: _controllers.length == 1 ? null : () => _removeRow(index),
+                        onPressed: () => _removeRow(index),
                         icon: const Icon(Icons.remove_circle_outline),
                       ),
                     ],

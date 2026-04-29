@@ -17,10 +17,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
-    // Получаем текущего авторизованного пользователя
     final User? user = FirebaseAuth.instance.currentUser;
 
-    // Статичные предложения рецептов
     final suggestions = [
       Recipe(id: 1, name: 'Avocado Toast', time: '15m', rating: 4.7, calories: '220 kcal', difficulty: 'Easy', category: 'Breakfast', servings: 1, ingredients: ['Bread','Avocado'], instructions: ['Toast bread','Smash avocado'], color: const Color(0xFF86BC25)),
       Recipe(id: 2, name: 'Berry Smoothie', time: '10m', rating: 4.5, calories: '150 kcal', difficulty: 'Easy', category: 'Drinks', servings: 1, ingredients: ['Berries','Yogurt'], instructions: ['Blend ingredients'], color: const Color(0xFFD946EF)),
@@ -77,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Action Card: Start Scan ---
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, '/scan'),
               child: Container(
@@ -131,7 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            // --- Tools Grid ---
             Row(
               children: [
                 Expanded(
@@ -186,7 +182,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 24),
 
-            // --- Real Recent Scans Section ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -213,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       stream: FirebaseFirestore.instance
                           .collection('users')
                           .doc(user.uid)
-                          .collection('saved_scans')
+                          .collection('scan_history')
                           .orderBy('timestamp', descending: true)
                           .limit(5)
                           .snapshots(),
@@ -235,7 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             final data = docs[index].data() as Map<String, dynamic>;
                             final bgColors = [const Color(0xFFE0F5F0), const Color(0xFFEDE9F3), const Color(0xFFE8F3FC)];
                             
-                            // Форматирование даты
                             String timeText = "Just now";
                             if (data['timestamp'] != null) {
                               final date = (data['timestamp'] as Timestamp).toDate();
@@ -292,7 +286,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 24),
 
-            // --- Cook Suggestions ---
             const Text('Cook suggestions', style: TextStyle(letterSpacing: 1.5, color: Colors.grey, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             Column(
@@ -352,7 +345,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            // --- Show More Recipes Button ---
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

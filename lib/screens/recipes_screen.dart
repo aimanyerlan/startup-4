@@ -121,7 +121,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // Header + Search
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 12),
                 decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6)))) ,
@@ -168,7 +167,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Search field with overlay recent
                     Stack(
                       children: [
                         TextField(
@@ -185,7 +183,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primaryGreen, width: 2)),
                           ),
                         ),
-                        // Recent searches dropdown
                         if (showRecent && searchQuery.isEmpty)
                           Positioned(
                             left: 0,
@@ -220,7 +217,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                 ),
               ),
 
-              // Categories
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -264,7 +260,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                 ),
               ),
 
-              // Content
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 120),
@@ -394,7 +389,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                           ],
                         ),
 
-                        // Heart button (glass)
                         Positioned(
                           top: 10,
                           right: 10,

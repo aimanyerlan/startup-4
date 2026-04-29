@@ -144,7 +144,6 @@ class _ConverterScreenState extends State<ConverterScreen> {
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
                 child: Column(
@@ -185,7 +184,6 @@ class _ConverterScreenState extends State<ConverterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Amount input
                     const Text(
                       'INPUT QUANTITY',
                       style: TextStyle(
@@ -208,7 +206,6 @@ class _ConverterScreenState extends State<ConverterScreen> {
 
                     const SizedBox(height: 32),
 
-                    // units row
                     Row(
                       children: [
                         Expanded(
@@ -301,7 +298,6 @@ class _ConverterScreenState extends State<ConverterScreen> {
                       const SizedBox(height: 24),
                     ],
 
-                    // quick references
                     const Text(
                       'STANDARDS',
                       style: TextStyle(

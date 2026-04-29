@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// emerald green color used across the app
 const Color _emerald = Color(0xFF10B981);
 
 class WelcomeScreen extends StatelessWidget {
@@ -23,7 +22,6 @@ class WelcomeScreen extends StatelessWidget {
             child: Column(
               children: [
                 const Spacer(flex: 2),
-                // Logo with shadow
                 Container(
                   width: 120,
                   height: 120,
@@ -41,7 +39,6 @@ class WelcomeScreen extends StatelessWidget {
                   child: const Icon(Icons.shopping_basket, color: Colors.white, size: 56),
                 ),
                 const SizedBox(height: 40),
-                // Title
                 const Text(
                   'FreshScan',
                   style: TextStyle(
@@ -51,7 +48,6 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Subtitle/Description
                 const Text(
                   'Your intelligent kitchen companion for smarter grocery choices',
                   textAlign: TextAlign.center,
@@ -63,11 +59,9 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const Spacer(flex: 2),
-                // Buttons
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Log In button - filled
                     ElevatedButton(
                       onPressed: () {
                         Navigator.pushReplacementNamed(context, '/auth');

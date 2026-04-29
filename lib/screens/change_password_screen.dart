@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-// Подключаем магию Firebase Auth
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -20,7 +18,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _isObscureNewPassword = true;
   bool _isObscureConfirmPassword = true;
   
-  bool _isLoading = false; // Добавили индикатор загрузки
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -38,9 +36,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
-  // --- МАГИЯ СМЕНЫ ПАРОЛЯ В FIREBASE ---
   Future<void> _handleSave() async {
-    // Validate fields
     if (_currentPasswordController.text.isEmpty ||
         _newPasswordController.text.isEmpty ||
         _confirmPasswordController.text.isEmpty) {
@@ -50,7 +46,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
 
-    // Validate password match
     if (_newPasswordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('New passwords do not match')),
@@ -58,7 +53,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
 
-    // Validate password length
     if (_newPasswordController.text.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password must be at least 8 characters')),
@@ -71,7 +65,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       
-      // Если пользователь Гость, ему нельзя менять пароль
       if (user == null || user.isAnonymous) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Guests cannot change passwords')),
@@ -80,17 +73,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         return;
       }
 
-      // 1. Повторная аутентификация (чтобы Firebase убедился, что это именно ты)
       AuthCredential credential = EmailAuthProvider.credential(
         email: user.email!, 
         password: _currentPasswordController.text
       );
       await user.reauthenticateWithCredential(credential);
 
-      // 2. Если старый пароль верный, устанавливаем новый
       await user.updatePassword(_newPasswordController.text);
 
-      // Success
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +92,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
-      // Обработка ошибок (например, неверный старый пароль)
       if (mounted) {
         setState(() => _isLoading = false);
         String errorMessage = 'Error changing password';
@@ -196,7 +185,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Current Password Field
           _buildPasswordField(
             label: 'Current Password',
             controller: _currentPasswordController,
@@ -207,7 +195,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           const SizedBox(height: 16),
 
-          // New Password Field
           _buildPasswordField(
             label: 'New Password',
             controller: _newPasswordController,
@@ -218,7 +205,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Confirm Password Field
           _buildPasswordField(
             label: 'Confirm New Password',
             controller: _confirmPasswordController,
@@ -229,11 +215,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Password Requirements Box
           _buildRequirementsBox(),
           const SizedBox(height: 24),
 
-          // Update Button
           SizedBox(
             width: double.infinity,
             height: 48,

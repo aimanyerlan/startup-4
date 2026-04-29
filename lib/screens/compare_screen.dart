@@ -26,7 +26,6 @@ class _CompareScreenState extends State<CompareScreen> {
   }
 
   void handleCalculate() {
-    // Скрывает клавиатуру при нажатии кнопки
     FocusScope.of(context).unfocus(); 
     
     if (!_isValidNumericInput(price1Controller.text) ||
@@ -34,7 +33,7 @@ class _CompareScreenState extends State<CompareScreen> {
         !_isValidNumericInput(price2Controller.text) ||
         !_isValidNumericInput(weight2Controller.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Введите только цифры в формате 12 или 12.5')),
+        const SnackBar(content: Text('Enter numbers only, for example 12 or 12.5')),
       );
       return;
     }

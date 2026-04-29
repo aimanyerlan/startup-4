@@ -25,7 +25,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (email.isEmpty || !_emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Введите корректный email'),
+          content: Text('Enter a valid email address'),
           backgroundColor: Colors.red,
         ),
       );
@@ -38,17 +38,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Если аккаунт существует, письмо уже отправлено'),
+          content: Text('If an account exists, a reset email has been sent'),
           backgroundColor: Color(0xFF2ECC71),
         ),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      String message = 'Не удалось отправить письмо для сброса';
+      String message = 'Failed to send reset email';
       if (e.code == 'invalid-email') {
-        message = 'Некорректный email';
+        message = 'Invalid email address';
       } else if (e.code == 'too-many-requests') {
-        message = 'Слишком много попыток, попробуйте позже';
+        message = 'Too many attempts. Please try again later';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,7 +58,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Произошла ошибка. Попробуйте позже'),
+          content: Text('An error occurred. Please try again later'),
           backgroundColor: Colors.red,
         ),
       );

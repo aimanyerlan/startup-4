@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/widgets/layout.dart';
-// 1. Подключаем Firebase Auth
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -49,45 +48,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool hasError = false;
 
     if (name.isEmpty) {
-      _nameError = 'Введите имя';
+      _nameError = 'Enter your name';
       hasError = true;
     }
 
     if (email.isEmpty) {
-      _emailError = 'Введите email';
+      _emailError = 'Enter your email';
       hasError = true;
     } else if (!_emailRegex.hasMatch(email)) {
-      _emailError = 'Некорректный email';
+      _emailError = 'Invalid email address';
       hasError = true;
     }
 
     if (password.isEmpty) {
-      _passwordError = 'Введите пароль';
+      _passwordError = 'Enter your password';
       hasError = true;
     } else if (password.length < 8) {
-      _passwordError = 'Минимум 8 символов';
+      _passwordError = 'Minimum 8 characters';
       hasError = true;
     }
 
     if (confirm.isEmpty) {
-      _confirmError = 'Подтвердите пароль';
+      _confirmError = 'Confirm your password';
       hasError = true;
     } else if (confirm != password) {
-      _confirmError = 'Пароли не совпадают';
+      _confirmError = 'Passwords do not match';
       hasError = true;
     }
 
     if (hasError) {
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Исправьте ошибки в форме')),
+        const SnackBar(content: Text('Please fix the form errors')),
       );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // 2. НАСТОЯЩАЯ РЕГИСТРАЦИЯ В FIREBASE
     try {
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
@@ -115,28 +113,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }, SetOptions(merge: true));
       }
       
-      // Если регистрация прошла успешно:
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Аккаунт успешно создан! 🎉'), 
+            content: Text('Account created successfully! 🎉'),
             backgroundColor: Color(0xFF10B981)
           ),
         );
-        // Перекидываем на главную (кнопка "Назад" больше не будет работать)
         Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       }
     } on FirebaseAuthException catch (e) {
-      // 3. ОБРАБОТКА ОШИБОК FIREBASE (Например, такой email уже есть)
       if (mounted) {
         setState(() => _isLoading = false);
-        String errorMessage = 'Ошибка регистрации';
+        String errorMessage = 'Registration failed';
         
         if (e.code == 'weak-password') {
-          errorMessage = 'Пароль слишком простой';
+          errorMessage = 'Password is too weak';
         } else if (e.code == 'email-already-in-use') {
-          errorMessage = 'Аккаунт с таким email уже существует';
+          errorMessage = 'An account with this email already exists';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -147,7 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Неизвестная ошибка: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Unexpected error: $e'), backgroundColor: Colors.red),
         );
       }
     }

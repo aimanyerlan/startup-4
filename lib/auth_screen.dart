@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Импортируем наш будущий навигатор:
 import 'widgets/bottom_nav.dart'; 
 
 class AuthScreen extends StatefulWidget {
@@ -15,7 +14,6 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscureText = true;
 
-  // Функция обычного входа (по email/паролю)
   Future<void> login() async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -23,7 +21,6 @@ class _AuthScreenState extends State<AuthScreen> {
         password: _passwordController.text.trim(),
       );
       if (mounted) {
-        // После успеха переходим на главный экран с нижним меню!
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const BottomNavBar()),
@@ -32,18 +29,16 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Sign in failed: ${e.toString()}'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  // НОВАЯ ФУНКЦИЯ: Вход как Гость
   Future<void> loginAsGuest() async {
     try {
       await FirebaseAuth.instance.signInAnonymously();
       if (mounted) {
-        // Успешно вошли как гость -> идем на главный экран
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const BottomNavBar()),
@@ -52,7 +47,7 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка гостевого входа: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Guest sign in failed: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -67,7 +62,7 @@ class _AuthScreenState extends State<AuthScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {}, // Заглушка для кнопки назад
+          onPressed: () {},
         ),
       ),
       body: SafeArea(
@@ -87,7 +82,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 40),
               
-              // Поле Email
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -111,7 +105,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 20),
               
-              // Поле Пароль
               TextField(
                 controller: _passwordController,
                 obscureText: _obscureText,
@@ -143,7 +136,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 20),
               
-              // КНОПКА ГОСТЯ С ПРИВЯЗАННОЙ ФУНКЦИЕЙ
               TextButton(
                 onPressed: loginAsGuest, 
                 child: const Text('Continue as Guest', style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold)),
@@ -177,7 +169,6 @@ class _AuthScreenState extends State<AuthScreen> {
               
               const SizedBox(height: 40),
               
-              // Кнопка Sign In
               SizedBox(
                 width: double.infinity,
                 height: 56,

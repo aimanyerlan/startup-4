@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// Подтягиваем экраны из папки screens
 import '../screens/home_screen.dart';
 import '../screens/camera_scan_screen.dart';
 import '../screens/saved_products_screen.dart';
@@ -15,23 +14,23 @@ class BottomNavBar extends StatefulWidget {
 class _BottomNavBarState extends State<BottomNavBar> {
   int _currentIndex = 0;
 
-  // Список из 4 главных экранов
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const CameraScanScreen(),
-    const SavedProductsScreen(),
-    const ProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final bool isScanTab = _currentIndex == 1;
+    final List<Widget> screens = [
+      const HomeScreen(),
+      CameraScanScreen(
+        onBackToHome: () {
+          if (!mounted) return;
+          setState(() => _currentIndex = 0);
+        },
+      ),
+      const SavedProductsScreen(),
+      const ProfileScreen(),
+    ];
 
     return Scaffold(
-      // Показываем экран в зависимости от того, какая иконка нажата
-      body: _screens[_currentIndex],
-      
-      // Сама нижняя панель
+      body: screens[_currentIndex],
       bottomNavigationBar: isScanTab
           ? null
           : Container(

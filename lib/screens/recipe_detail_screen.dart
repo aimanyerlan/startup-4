@@ -40,7 +40,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Ваша оценка: $r ★')),
+      SnackBar(content: Text('Your rating: $r ★')),
     );
   }
 
@@ -60,7 +60,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hero
                 Stack(
                   children: [
                     Container(
@@ -75,7 +74,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                     ),
 
-                    // Back button
                     Positioned(
                       top: 16,
                       left: 16,
@@ -85,7 +83,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                     ),
 
-                    // Save button
                     Positioned(
                       top: 16,
                       right: 16,
@@ -98,7 +95,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   ],
                 ),
 
-                // Content
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 18),
                   child: Column(
@@ -107,7 +103,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       Text(r.name.toUpperCase(), style: GoogleFonts.lato(fontSize: 22, fontWeight: FontWeight.w900)),
                       const SizedBox(height: 12),
 
-                      // Stats row
                       Row(
                         children: [
                           _statItem(Icons.schedule, r.time),
@@ -119,7 +114,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
 
                       const SizedBox(height: 12),
-                      // Difficulty badge
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
@@ -131,7 +125,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Ingredients
                       Text('INGREDIENTS', style: GoogleFonts.lato(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.grey)),
                       const SizedBox(height: 12),
                       Column(
@@ -158,7 +151,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Instructions
                       Text('INSTRUCTIONS', style: GoogleFonts.lato(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.grey)),
                       const SizedBox(height: 12),
                       Column(
@@ -181,7 +173,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                       const SizedBox(height: 24),
 
-                      // Rating card
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.grey.shade100)),
@@ -215,7 +206,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Extra recipe info
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
