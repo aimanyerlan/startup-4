@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_app/widgets/layout.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 class FullHistoryScreen extends StatelessWidget {
@@ -22,17 +23,41 @@ class FullHistoryScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_back, color: Colors.black),
             onPressed: () => Navigator.pop(context),
           ),
+          titleSpacing: 0,
           title: Row(
-            children: const [
-              Icon(Icons.history, color: Colors.black),
-              SizedBox(width: 8),
-              Text(
-                'SCAN HISTORY',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2ECC71).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(Icons.history, color: Color(0xFF2ECC71), size: 20),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SCAN HISTORY',
+                    style: GoogleFonts.lato(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                      color: Colors.black,
+                    ),
+                  ),
+                  Text(
+                    'Your recent analyses',
+                    style: GoogleFonts.lato(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -70,7 +95,9 @@ class FullHistoryScreen extends StatelessWidget {
                       formattedDate = DateFormat('dd.MM.yyyy HH:mm').format(date);
                     }
 
-                    final bool isSafe = data['status']?.toString().toUpperCase() == 'SAFE';
+                    final statusText =
+                        data['status']?.toString().toUpperCase() ?? '';
+                    final bool isSafe = statusText.contains('SAFE');
                     final String name = data['productName'] ?? 'Product';
                     final String calories = data['calories'] ?? '-- kcal';
 
@@ -88,7 +115,9 @@ class FullHistoryScreen extends StatelessWidget {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(28),
                             border: Border.all(
-                              color: isSafe ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                              color: isSafe
+                                  ? Colors.green.withValues(alpha: 0.2)
+                                  : Colors.red.withValues(alpha: 0.2),
                               width: 2
                             ),
                             boxShadow: const [

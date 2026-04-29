@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:my_app/widgets/bottom_nav.dart';
 
 class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
@@ -15,6 +17,10 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   static const String _geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY');
+  static const Color _pageBg = Color(0xFFF9FAFB);
+  static const Color _accentGreen = Color(0xFF2ECC71);
+  static const Color _danger = Color(0xFFDC2626);
+  static const Color _cardBorder = Color(0xFFE5E7EB);
   bool _isLoading = true;
   bool _canSaveAnalysis = true;
   Map<String, dynamic>? _analysisResult;
@@ -35,7 +41,7 @@ class _ResultScreenState extends State<ResultScreen> {
       // Если данные пришли из сохраненных сканирований или истории
       if (hasSavedAnalysisData) {
         setState(() {
-          _analysisResult = _normalizeAnalysis(args!);
+          _analysisResult = _normalizeAnalysis(args);
           _canSaveAnalysis = false;
           _isLoading = false;
         });
@@ -94,35 +100,75 @@ class _ResultScreenState extends State<ResultScreen> {
         text.contains('try again later');
   }
 
+  bool _isModelUnavailableError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('not found for api version') ||
+        text.contains('is not supported for generatecontent') ||
+        text.contains('model not found');
+  }
+
+  Exception _wrapGeminiFailure(Object? lastError) {
+    if (lastError == null) return Exception('AI analysis failed');
+    if (lastError is InvalidApiKey) {
+      return Exception(
+        'Invalid Gemini API key. Create a key at Google AI Studio '
+        '(https://aistudio.google.com/apikey) and run with '
+        '--dart-define=GEMINI_API_KEY=your_key. Do not use the Firebase '
+        'Android/iOS client key from google-services.json.',
+      );
+    }
+    final msg = lastError.toString();
+    if (_isModelUnavailableError(lastError)) {
+      return Exception(
+        'No Gemini model responded for this key. Use a Google AI Studio API key '
+        '(Generative Language API), or check region restrictions. Technical: $msg',
+      );
+    }
+    return Exception(msg);
+  }
+
   Future<GenerateContentResponse> _generateWithRetry(List<Part> parts) async {
-    const models = <String>[
+    const apiVersions = ['v1', 'v1beta'];
+    const modelNames = <String>[
       'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
       'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro',
+      'gemini-1.0-pro',
     ];
     Object? lastError;
 
-    for (final modelName in models) {
-      final model = GenerativeModel(
-        model: modelName,
-        apiKey: _geminiApiKey,
-      );
+    for (final apiVersion in apiVersions) {
+      for (final modelName in modelNames) {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: _geminiApiKey,
+          requestOptions: RequestOptions(apiVersion: apiVersion),
+        );
 
-      for (int attempt = 0; attempt < 3; attempt++) {
-        try {
-          return await model.generateContent([Content.multi(parts)]);
-        } catch (e) {
-          lastError = e;
-          final isLastAttempt = attempt == 2;
-          if (_isRetryableGeminiError(e) && !isLastAttempt) {
-            await Future.delayed(Duration(seconds: 1 + attempt * 2));
-            continue;
+        for (int attempt = 0; attempt < 3; attempt++) {
+          try {
+            return await model.generateContent([Content.multi(parts)]);
+          } catch (e) {
+            lastError = e;
+            if (_isModelUnavailableError(e)) {
+              break;
+            }
+            final isLastAttempt = attempt == 2;
+            if (_isRetryableGeminiError(e) && !isLastAttempt) {
+              await Future.delayed(Duration(seconds: 1 + attempt * 2));
+              continue;
+            }
+            break;
           }
-          break;
         }
       }
     }
 
-    throw lastError ?? Exception('AI analysis failed');
+    throw _wrapGeminiFailure(lastError);
   }
 
   Future<void> _saveAnalysis() async {
@@ -154,7 +200,12 @@ class _ResultScreenState extends State<ResultScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pushNamed(context, '/saved');
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/home',
+          (route) => false,
+          arguments: {'tab': BottomNavBar.savedTabIndex},
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -290,198 +341,559 @@ Return ONLY valid JSON in English:
 
     final data = _analysisResult!;
     final bool isSafe = data['status'].toString().toUpperCase().contains('SAFE');
+    final dangerous = data['dangerous'] as List;
+    final healthy = data['healthy'] as List;
+    final ingredients = data['ingredients'] as List;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: _pageBg,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: _pageBg,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: Colors.black, onPressed: () => Navigator.pop(context)),
-        title: const Text("Product Analysis", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        leading: BackButton(
+          color: Colors.black87,
+          onPressed: () => Navigator.pop(context),
+        ),
+        titleSpacing: 0,
+        title: Row(
           children: [
-            Text(
-              data['productName'] ?? 'Product',
-              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _accentGreen.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.document_scanner_rounded,
+                color: _accentGreen,
+                size: 20,
+              ),
             ),
-            const SizedBox(height: 20),
-            
-            _buildStatusBanner(isSafe, isSafe ? "SAFE TO CONSUME" : "WARNING / DANGER"),
-            
-            const SizedBox(height: 24),
-            Row(
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _metricCard("Weight", data['weight'] ?? "--"),
-                const SizedBox(width: 12),
-                _metricCard("Calories", data['calories'] ?? "--"),
+                Text(
+                  'SCAN RESULT',
+                  style: GoogleFonts.lato(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                    color: Colors.black,
+                  ),
+                ),
+                Text(
+                  'Read top to bottom — it is quick',
+                  style: GoogleFonts.lato(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
               ],
             ),
-            
-            const SizedBox(height: 24),
-            _buildList("Risky ingredients & allergens", data['dangerous'], Colors.red),
-            _buildList("Beneficial ingredients", data['healthy'], Colors.green),
-            
-            const SizedBox(height: 10),
-            const Text(
-              "Full ingredients",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                fontSize: 16,
-              ),
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildVerdictSection(isSafe),
+            const SizedBox(height: 16),
+            _buildProductCard(data),
+            const SizedBox(height: 16),
+            _buildNumberedSectionCard(
+              step: 1,
+              title: 'Things to double-check',
+              hint:
+                  'Allergens and additives the AI noticed. Always compare with the real package.',
+              icon: Icons.visibility_rounded,
+              iconColor: _danger,
+              items: dangerous,
+              emptyMessage:
+                  'Nothing risky was highlighted. Still check the label if you have allergies.',
+              itemTint: _danger,
             ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                (data['ingredients'] as List).join(', '),
-                style: const TextStyle(height: 1.5, fontSize: 16),
-              ),
+            const SizedBox(height: 16),
+            _buildNumberedSectionCard(
+              step: 2,
+              title: 'Possible positives',
+              hint: 'Ingredients that are often seen as beneficial — not medical advice.',
+              icon: Icons.eco_rounded,
+              iconColor: const Color(0xFF15803D),
+              items: healthy,
+              emptyMessage: 'No “healthy highlights” were called out for this product.',
+              itemTint: const Color(0xFF15803D),
             ),
-
-            const SizedBox(height: 40),
-            
+            const SizedBox(height: 16),
+            _buildIngredientsCard(ingredients),
             if (_canSaveAnalysis) ...[
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveAnalysis, 
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  minimumSize: const Size(double.infinity, 60),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              const SizedBox(height: 28),
+              Text(
+                'Like this breakdown? Save it to open later from the Saved tab.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.lato(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                  height: 1.35,
                 ),
-                child: const Text(
-                  'Save Analysis', 
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: _isLoading ? null : _saveAnalysis,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black87,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Save Analysis',
+                    style: GoogleFonts.lato(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusBanner(bool isSafe, String text) {
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: _cardBorder),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 24,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerdictSection(bool isSafe) {
+    final title = isSafe ? 'Looks OK to eat' : 'Use extra caution';
+    final body = isSafe
+        ? 'We did not flag major risks from this photo. If you have allergies, always verify on the physical package.'
+        : 'The AI flagged possible allergens or additives. Read the real label and avoid the product if unsure.';
+
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isSafe ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isSafe
+              ? [
+                  _accentGreen,
+                  const Color(0xFF10B981),
+                ]
+              : [
+                  const Color(0xFFEF4444),
+                  const Color(0xFFDC2626),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: (isSafe ? _accentGreen : _danger).withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(isSafe ? Icons.check_circle : Icons.warning, color: Colors.white),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'VERDICT',
+                  style: GoogleFonts.lato(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                isSafe ? Icons.verified_rounded : Icons.gpp_maybe_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: GoogleFonts.lato(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            style: GoogleFonts.lato(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.95),
+              height: 1.45,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _metricCard(String label, String value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-        child: Column(
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
+  Widget _buildProductCard(Map<String, dynamic> data) {
+    final name = data['productName']?.toString() ?? 'Product';
+    final weight = data['weight']?.toString() ?? '--';
+    final calories = data['calories']?.toString() ?? '--';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PRODUCT',
+            style: GoogleFonts.lato(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+              color: Colors.grey.shade500,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name,
+            style: GoogleFonts.lato(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _miniStat(
+                  Icons.scale_rounded,
+                  'Weight',
+                  weight,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _miniStat(
+                  Icons.local_fire_department_rounded,
+                  'Energy',
+                  calories,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildList(String title, dynamic items, Color color) {
-    final list = items as List;
-    final icon = color == Colors.red ? Icons.warning_amber_rounded : Icons.check_circle;
-    final accent = color == Colors.red ? const Color(0xFFB91C1C) : const Color(0xFF166534);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: accent, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (list.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              color == Colors.red
-                  ? 'No risky ingredients detected.'
-                  : 'No beneficial ingredients detected.',
-              style: const TextStyle(color: Colors.black54),
-            ),
-          )
-        else
-          Column(
-            children: list.asMap().entries.map((entry) {
-              final index = entry.key + 1;
-              final text = entry.value.toString();
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
+  Widget _miniStat(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: _pageBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _cardBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: _accentGreen),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.lato(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.lato(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNumberedSectionCard({
+    required int step,
+    required String title,
+    required String hint,
+    required IconData icon,
+    required Color iconColor,
+    required List items,
+    required String emptyMessage,
+    required Color itemTint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$step',
+                  style: GoogleFonts.lato(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, size: 18, color: iconColor),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: GoogleFonts.lato(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      hint,
+                      style: GoogleFonts.lato(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (items.isEmpty)
+            Text(
+              emptyMessage,
+              style: GoogleFonts.lato(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            )
+          else
+            Column(
+              children: items.map<Widget>((raw) {
+                final text = raw.toString();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: itemTint,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          text,
+                          style: GoogleFonts.lato(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIngredientsCard(List ingredients) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '3',
+                  style: GoogleFonts.lato(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Full ingredient list',
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Everything we could read from the label, one line per item.',
+                      style: GoogleFonts.lato(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (ingredients.isEmpty)
+            Text(
+              'No ingredient list was extracted. Try a clearer photo of the ingredients block.',
+              style: GoogleFonts.lato(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+                height: 1.4,
+              ),
+            )
+          else
+            ...ingredients.map<Widget>((raw) {
+              final text = raw.toString();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$index.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: accent,
+                      '•',
+                      style: GoogleFonts.lato(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: _accentGreen,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         text,
-                        style: const TextStyle(fontSize: 16, height: 1.35),
+                        style: GoogleFonts.lato(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          height: 1.45,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                   ],
                 ),
               );
-            }).toList(),
-          ),
-        const SizedBox(height: 10),
-      ],
+            }),
+        ],
+      ),
     );
   }
 }

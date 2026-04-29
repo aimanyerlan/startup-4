@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:my_app/widgets/layout.dart';
 
 class CompareScreen extends StatefulWidget {
@@ -122,10 +123,42 @@ class _CompareScreenState extends State<CompareScreen> {
                         onPressed: () => Navigator.pop(context),
                         padding: EdgeInsets.zero,
                       ),
-                      const SizedBox(height: 8),
-                      const Text('COMPARISON', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
-                      const SizedBox(height: 4),
-                      const Text('Evaluate best value', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600, letterSpacing: 1)),
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ECC71).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.trending_up_rounded, color: Color(0xFF2ECC71), size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'COMPARISON',
+                                style: GoogleFonts.lato(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                'Evaluate best value',
+                                style: GoogleFonts.lato(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

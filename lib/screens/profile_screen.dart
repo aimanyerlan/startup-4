@@ -276,9 +276,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-            const Text(
-              'Account',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2ECC71).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.person_rounded, color: Color(0xFF2ECC71), size: 20),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'PROFILE',
+                      style: GoogleFonts.lato(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      'Manage your account',
+                      style: GoogleFonts.lato(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 32),
             Card(
@@ -411,41 +444,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            _buildMenuItem(
-              title: 'Personal Information',
-              icon: Icons.info_outline,
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const UserInformationScreen()),
-                );
-                _loadUserData();
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildMenuItem(
-              title: 'Change Password',
-              icon: Icons.lock_outline,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
+            if (!isGuest) ...[
+              _buildMenuItem(
+                title: 'Personal Information',
+                icon: Icons.info_outline,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserInformationScreen()),
+                  );
+                  _loadUserData();
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildMenuItem(
+                title: 'Change Password',
+                icon: Icons.lock_outline,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: isGuest ? const Color(0xFF2ECC71) : Colors.red,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: _showLogoutConfirmation,
+                onPressed: isGuest
+                    ? () => Navigator.pushNamed(context, '/register')
+                    : _showLogoutConfirmation,
                 child: Text(
-                  'SIGN OUT',
+                  isGuest ? 'REGISTER' : 'SIGN OUT',
                   style: GoogleFonts.lato(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ),

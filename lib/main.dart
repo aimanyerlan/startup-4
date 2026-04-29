@@ -42,7 +42,15 @@ class FreshScanApp extends StatelessWidget {
       
       routes: {
         '/auth': (context) => const AuthScreen(),
-        '/home': (context) => const BottomNavBar(),
+        '/home': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          var initialIndex = 0;
+          if (args is Map) {
+            final tab = args['tab'];
+            if (tab is int && tab >= 0 && tab <= 3) initialIndex = tab;
+          }
+          return BottomNavBar(initialIndex: initialIndex);
+        },
         
         '/register': (context) => const RegisterScreen(), 
         '/forgot-password': (context) => const ForgotPasswordScreen(),

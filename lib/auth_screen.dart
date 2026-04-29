@@ -134,15 +134,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              
-              TextButton(
-                onPressed: loginAsGuest, 
-                child: const Text('Continue as Guest', style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold)),
-              ),
-
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
                   child: const Text(
@@ -154,20 +147,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
               ),
-              
-              Row(
-                children: [
-                  const Text("Don't have an account? ", style: TextStyle(color: Colors.black54)),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/register');
-                    },
-                    child: const Text('Create Account', style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 40),
+              const SizedBox(height: 28),
               
               SizedBox(
                 width: double.infinity,
@@ -187,6 +167,33 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 18),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  children: [
+                    const Text("Don't have an account?", style: TextStyle(color: Colors.black54)),
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/register'),
+                      child: const Text(
+                        'Create Account',
+                        style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const Text('or', style: TextStyle(color: Colors.black54)),
+                    GestureDetector(
+                      onTap: loginAsGuest,
+                      child: const Text(
+                        'Continue as Guest',
+                        style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

@@ -5,14 +5,26 @@ import '../screens/saved_products_screen.dart';
 import '../screens/profile_screen.dart';
 
 class BottomNavBar extends StatefulWidget {
-  const BottomNavBar({super.key});
+  const BottomNavBar({super.key, this.initialIndex = 0});
+
+  /// Index of the SAVED tab (use when navigating after e.g. saving an analysis).
+  static const int savedTabIndex = 2;
+
+  final int initialIndex;
 
   @override
   State<BottomNavBar> createState() => _BottomNavBarState();
 }
 
 class _BottomNavBarState extends State<BottomNavBar> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    final i = widget.initialIndex;
+    _currentIndex = (i >= 0 && i <= 3) ? i : 0;
+  }
 
   @override
   Widget build(BuildContext context) {

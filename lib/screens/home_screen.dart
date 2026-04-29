@@ -236,7 +236,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               timeText = DateFormat.MMMd().format(date);
                             }
 
-                            final bool isSafe = data['status']?.toString().toUpperCase() == 'SAFE';
+                            final statusText =
+                                data['status']?.toString().toUpperCase() ?? '';
+                            final bool isSafe = statusText.contains('SAFE');
 
                             return Padding(
                               padding: const EdgeInsets.only(right: 12.0),
