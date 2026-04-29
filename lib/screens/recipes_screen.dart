@@ -1,11 +1,13 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:my_app/widgets/layout.dart';
 import 'package:my_app/models/recipe.dart';
 import 'package:my_app/models/recipe_rating_store.dart';
 import 'package:my_app/screens/recipe_detail_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:my_app/screens/admin_add_recipe_screen.dart';
 
 class RecipesScreen extends StatefulWidget {
   const RecipesScreen({super.key});
@@ -23,6 +25,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
   String selectedCategory = 'All';
   String searchQuery = '';
   bool showRecent = false;
+  bool isLoading = true; 
 
   final FocusNode _searchFocus = FocusNode();
 
@@ -37,10 +40,23 @@ class _RecipesScreenState extends State<RecipesScreen> {
     'Drinks',
   ];
 
+  String _getEmojiForCategory(String cat) {
+    switch (cat) {
+      case 'Breakfast': return '🍳';
+      case 'Lunch': return '🥗';
+      case 'Dinner': return '🍝';
+      case 'Drinks': return '🍹';
+      case 'Saved': return '❤️';
+      case 'All': return '✨';
+      default: return '🍽️';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _populateMockData();
+    _loadRecipesFromFirebase(); 
+    
     _searchFocus.addListener(() {
       setState(() {
         showRecent = _searchFocus.hasFocus;
@@ -48,17 +64,70 @@ class _RecipesScreenState extends State<RecipesScreen> {
     });
   }
 
-  void _populateMockData() {
-    allRecipes = [
-      Recipe(id: 1, name: 'Avocado Toast', time: '10m', rating: 4.7, calories: '220 kcal', difficulty: 'Easy', category: 'Breakfast', servings: 1, ingredients: ['Bread', 'Avocado', 'Salt'], instructions: ['Toast bread', 'Smash avocado', 'Season to taste'], color: const Color(0xFF86BC25)),
-      Recipe(id: 2, name: 'Berry Smoothie', time: '5m', rating: 4.5, calories: '150 kcal', difficulty: 'Easy', category: 'Drinks', servings: 1, ingredients: ['Berries', 'Yogurt', 'Honey'], instructions: ['Blend all ingredients'], color: const Color(0xFFD946EF)),
-      Recipe(id: 3, name: 'Salmon Salad', time: '20m', rating: 4.6, calories: '320 kcal', difficulty: 'Medium', category: 'Lunch', servings: 2, ingredients: ['Salmon', 'Lettuce', 'Dressing'], instructions: ['Cook salmon', 'Assemble salad'], color: const Color(0xFFFF6B6B)),
-      Recipe(id: 4, name: 'Pasta Carbonara', time: '25m', rating: 4.3, calories: '480 kcal', difficulty: 'Medium', category: 'Dinner', servings: 2, ingredients: ['Pasta', 'Eggs', 'Pancetta'], instructions: ['Cook pasta', 'Mix with sauce'], color: const Color(0xFFF97316)),
-      Recipe(id: 5, name: 'Egg Omelette', time: '12m', rating: 4.4, calories: '200 kcal', difficulty: 'Easy', category: 'Breakfast', servings: 1, ingredients: ['Eggs', 'Butter', 'Salt'], instructions: ['Beat eggs', 'Cook in pan'], color: const Color(0xFFFBBF24)),
-      Recipe(id: 6, name: 'Tuna Salad', time: '15m', rating: 4.2, calories: '260 kcal', difficulty: 'Easy', category: 'Lunch', servings: 1, ingredients: ['Tuna', 'Lettuce', 'Dressing'], instructions: ['Mix ingredients'], color: const Color(0xFFFF6B6B)),
-      Recipe(id: 7, name: 'Green Salad', time: '8m', rating: 4.8, calories: '120 kcal', difficulty: 'Easy', category: 'Lunch', servings: 1, ingredients: ['Greens', 'Olive oil'], instructions: ['Toss ingredients'], color: const Color(0xFF2ECC71)),
-      Recipe(id: 8, name: 'Iced Coffee', time: '4m', rating: 4.1, calories: '90 kcal', difficulty: 'Easy', category: 'Drinks', servings: 1, ingredients: ['Coffee', 'Ice', 'Milk'], instructions: ['Brew coffee', 'Serve over ice'], color: const Color(0xFFA855F7)),
-    ];
+  Future<void> _loadRecipesFromFirebase() async {
+    try {
+      final collection = FirebaseFirestore.instance.collection('recipes');
+      var snapshot = await collection.get();
+
+      if (snapshot.docs.isEmpty) {
+        final mockRecipes = [
+          Recipe(id: 1, name: 'Avocado Toast', time: '10m', rating: 4.7, calories: '220 kcal', difficulty: 'Easy', category: 'Breakfast', servings: 1, ingredients: ['Bread', 'Avocado', 'Salt'], instructions: ['Toast bread', 'Smash avocado', 'Season to taste'], color: const Color(0xFF86BC25)),
+          Recipe(id: 2, name: 'Berry Smoothie', time: '5m', rating: 4.5, calories: '150 kcal', difficulty: 'Easy', category: 'Drinks', servings: 1, ingredients: ['Berries', 'Yogurt', 'Honey'], instructions: ['Blend all ingredients'], color: const Color(0xFFD946EF)),
+          Recipe(id: 3, name: 'Salmon Salad', time: '20m', rating: 4.6, calories: '320 kcal', difficulty: 'Medium', category: 'Lunch', servings: 2, ingredients: ['Salmon', 'Lettuce', 'Dressing'], instructions: ['Cook salmon', 'Assemble salad'], color: const Color(0xFFFF6B6B)),
+          Recipe(id: 4, name: 'Pasta Carbonara', time: '25m', rating: 4.3, calories: '480 kcal', difficulty: 'Medium', category: 'Dinner', servings: 2, ingredients: ['Pasta', 'Eggs', 'Pancetta'], instructions: ['Cook pasta', 'Mix with sauce'], color: const Color(0xFFF97316)),
+          Recipe(id: 5, name: 'Egg Omelette', time: '12m', rating: 4.4, calories: '200 kcal', difficulty: 'Easy', category: 'Breakfast', servings: 1, ingredients: ['Eggs', 'Butter', 'Salt'], instructions: ['Beat eggs', 'Cook in pan'], color: const Color(0xFFFBBF24)),
+          Recipe(id: 6, name: 'Tuna Salad', time: '15m', rating: 4.2, calories: '260 kcal', difficulty: 'Easy', category: 'Lunch', servings: 1, ingredients: ['Tuna', 'Lettuce', 'Dressing'], instructions: ['Mix ingredients'], color: const Color(0xFFFF6B6B)),
+          Recipe(id: 7, name: 'Green Salad', time: '8m', rating: 4.8, calories: '120 kcal', difficulty: 'Easy', category: 'Lunch', servings: 1, ingredients: ['Greens', 'Olive oil'], instructions: ['Toss ingredients'], color: const Color(0xFF2ECC71)),
+          Recipe(id: 8, name: 'Iced Coffee', time: '4m', rating: 4.1, calories: '90 kcal', difficulty: 'Easy', category: 'Drinks', servings: 1, ingredients: ['Coffee', 'Ice', 'Milk'], instructions: ['Brew coffee', 'Serve over ice'], color: const Color(0xFFA855F7)),
+        ];
+
+        for (var r in mockRecipes) {
+          await collection.doc(r.id.toString()).set({
+            'id': r.id,
+            'name': r.name,
+            'time': r.time,
+            'rating': r.rating,
+            'calories': r.calories,
+            'difficulty': r.difficulty,
+            'category': r.category,
+            'servings': r.servings,
+            'ingredients': r.ingredients,
+            'instructions': r.instructions,
+            'colorValue': r.color.value, 
+          });
+        }
+        snapshot = await collection.get();
+      }
+
+      final fetchedRecipes = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Recipe(
+          id: data['id'] ?? 0,
+          name: data['name'] ?? '',
+          time: data['time'] ?? '',
+          rating: (data['rating'] ?? 0).toDouble(),
+          calories: data['calories'] ?? '',
+          difficulty: data['difficulty'] ?? '',
+          category: data['category'] ?? '',
+          servings: data['servings'] ?? 1,
+          ingredients: List<String>.from(data['ingredients'] ?? []),
+          instructions: List<String>.from(data['instructions'] ?? []),
+          color: Color(data['colorValue'] ?? 0xFF2ECC71),
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          allRecipes = fetchedRecipes;
+          isLoading = false; 
+        });
+      }
+    } catch (e) {
+      debugPrint("Firestore Error: $e");
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   Map<String, dynamic> _getIconFor(String name) {
@@ -150,7 +219,22 @@ class _RecipesScreenState extends State<RecipesScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('RECIPES', style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                                Row(
+                                  children: [
+                                    Text('RECIPES', style: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                                    if (['leelily030203@gmail.com', 'aimanyerlan@gmail.com'].contains(FirebaseAuth.instance.currentUser?.email))
+                                      IconButton(
+                                        icon: const Icon(Icons.add_circle, color: Color(0xFF2ECC71)),
+                                        onPressed: () async {
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => const AdminAddRecipeScreen()),
+                                          );
+                                          _loadRecipesFromFirebase(); 
+                                        },
+                                      ),
+                                  ],
+                                ),
                                 const SizedBox(height: 4),
                                 Text('Based on your preferences', style: GoogleFonts.lato(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.grey)),
                               ],
@@ -244,9 +328,9 @@ class _RecipesScreenState extends State<RecipesScreen> {
                           child: Row(
                             children: [
                               Text(
-                                name.toUpperCase(),
+                                '${_getEmojiForCategory(name)} ${name.toUpperCase()}',
                                 style: GoogleFonts.lato(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
                                   color: active ? Colors.white : Colors.grey,
                                 ),
@@ -261,36 +345,40 @@ class _RecipesScreenState extends State<RecipesScreen> {
               ),
 
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 120),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (searchQuery.isEmpty && selectedCategory == 'All') ...[
-                        _buildSection('Recommended For You', recommendedRecipes),
-                        _buildSection('Popular This Week', popularRecipes),
-                        _buildSection('Quick Recipes • Under 15 Min', quickRecipes, highlightTime: true),
-                      ],
+                child: isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (searchQuery.isEmpty && selectedCategory == 'All') ...[
+                              _buildSection('Recommended ✨', recommendedRecipes),
+                              _buildSection('Popular This Week 🔥', popularRecipes),
+                              _buildSection('Quick Recipes ⚡ Under 15 Min', quickRecipes, highlightTime: true),
+                            ],
 
-                      if (searchQuery.isNotEmpty || selectedCategory != 'All')
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-                          child: filteredRecipes.isEmpty
-                              ? Column(
-                                  children: [
-                                    const SizedBox(height: 40),
-                                    Icon(Icons.restaurant, size: 64, color: Colors.grey.shade300),
-                                    const SizedBox(height: 12),
-                                    Text(selectedCategory == 'Saved' ? 'No saved recipes yet' : 'No recipes found', style: GoogleFonts.lato(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey)),
-                                  ],
-                                )
-                              : Column(
-                                  children: filteredRecipes.map((r) => _buildVerticalCard(r)).toList(),
-                                ),
-                        )
-                    ],
-                  ),
-                ),
+                            if (searchQuery.isNotEmpty || selectedCategory != 'All')
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+                                child: filteredRecipes.isEmpty
+                                    ? Column(
+                                        children: [
+                                          const SizedBox(height: 40),
+                                          Icon(Icons.restaurant, size: 64, color: Colors.grey.shade300),
+                                          const SizedBox(height: 12),
+                                          Text(selectedCategory == 'Saved' ? 'No saved recipes yet' : 'No recipes found', style: GoogleFonts.lato(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey)),
+                                        ],
+                                      )
+                                    : Column(
+                                        children: filteredRecipes.map((r) => _buildVerticalCard(r)).toList(),
+                                      ),
+                              )
+                          ],
+                        ),
+                      ),
               )
             ],
           ),
@@ -309,109 +397,107 @@ class _RecipesScreenState extends State<RecipesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title.toUpperCase(), style: GoogleFonts.lato(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey)),
+              Text(title.toUpperCase(), style: GoogleFonts.lato(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.grey[800])),
             ],
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 220,
+            height: 240, 
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 20), 
               itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
               itemBuilder: (context, idx) {
                 final r = list[idx];
                 final iconData = _getIconFor(r.name);
                 return GestureDetector(
                   onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RecipeDetailScreen(recipe: r, initiallySaved: saved.contains(r.id)),
-                      ),
-                    );
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: r, initiallySaved: saved.contains(r.id))));
                     if (mounted) setState(() {});
                   },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: Container(
-                      width: 280,
+                  child: Container(
+                    width: 260,
+                    decoration: BoxDecoration(
                       color: Colors.white,
-                      child: Stack(
-                        children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              height: 120,
-                              decoration: BoxDecoration(color: iconData['color'].withOpacity(0.08)),
-                              child: Center(
-                                child: Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(color: iconData['color'], borderRadius: BorderRadius.circular(14)),
-                                  child: Icon(iconData['icon'], color: Colors.white, size: 34),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(14.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(r.name, style: GoogleFonts.lato(fontWeight: FontWeight.w900, fontSize: 14)),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.schedule, size: 14, color: Colors.grey),
-                                          const SizedBox(width: 6),
-                                          Text(r.time, style: GoogleFonts.lato(fontSize: 11, color: highlightTime ? primaryGreen : Colors.grey, fontWeight: FontWeight.w800))
-                                        ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.star, size: 14, color: Colors.amber),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            RecipeRatingStore.getAverage(r).toStringAsFixed(1),
-                                            style: GoogleFonts.lato(fontWeight: FontWeight.w900),
-                                          ),
-                                        ],
-                                      )
-                                    ],
-                                  )
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: GestureDetector(
-                            onTap: () => toggleSave(r.id),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(color: saved.contains(r.id) ? primaryGreen : Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(12)),
-                                  child: Icon(saved.contains(r.id) ? Icons.favorite : Icons.favorite_border, size: 18, color: saved.contains(r.id) ? Colors.white : Colors.grey),
-                                ),
-                              ),
-                            ),
-                          ),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: iconData['color'].withOpacity(0.25), 
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
                         )
                       ],
                     ),
-                  ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Stack(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                height: 110,
+                                decoration: BoxDecoration(color: iconData['color'].withOpacity(0.1)),
+                                child: Center(
+                                  child: Container(
+                                    width: 60, height: 60,
+                                    decoration: BoxDecoration(color: iconData['color'], borderRadius: BorderRadius.circular(16)),
+                                    child: Icon(iconData['icon'], color: Colors.white, size: 32),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(r.name, style: GoogleFonts.lato(fontWeight: FontWeight.w900, fontSize: 15)),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.schedule, size: 14, color: Colors.grey),
+                                            const SizedBox(width: 4),
+                                            Text(r.time, style: GoogleFonts.lato(fontSize: 12, color: highlightTime ? primaryGreen : Colors.grey, fontWeight: FontWeight.w800))
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
+                                            const SizedBox(width: 4),
+                                            Text(RecipeRatingStore.getAverage(r).toStringAsFixed(1), style: GoogleFonts.lato(fontWeight: FontWeight.w900, fontSize: 13)),
+                                          ],
+                                        )
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                          Positioned(
+                            top: 12, right: 12,
+                            child: GestureDetector(
+                              onTap: () => toggleSave(r.id),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                  child: Container(
+                                    width: 36, height: 36,
+                                    decoration: BoxDecoration(color: saved.contains(r.id) ? primaryGreen : Colors.white.withOpacity(0.7), borderRadius: BorderRadius.circular(14)),
+                                    child: Icon(saved.contains(r.id) ? Icons.favorite : Icons.favorite_border, size: 18, color: saved.contains(r.id) ? Colors.white : Colors.grey[700]),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
@@ -425,75 +511,56 @@ class _RecipesScreenState extends State<RecipesScreen> {
   Widget _buildVerticalCard(Recipe r) {
     final iconData = _getIconFor(r.name);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 8),
       child: GestureDetector(
         onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipe: r, initiallySaved: saved.contains(r.id)),
-            ),
-          );
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: r, initiallySaved: saved.contains(r.id))));
           if (mounted) setState(() {});
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: Container(
+        child: Container(
+          decoration: BoxDecoration(
             color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: iconData['color'].withOpacity(0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              )
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
             child: Row(
               children: [
                 Container(
-                  width: 112,
-                  height: 112,
-                  decoration: BoxDecoration(
-                    color: iconData['color'],
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      bottomLeft: Radius.circular(32),
-                    ),
-                  ),
+                  width: 110, height: 110,
+                  color: iconData['color'].withOpacity(0.1),
                   child: Center(
-                    child: Icon(
-                      iconData['icon'],
-                      color: Colors.white.withOpacity(0.9),
-                      size: 44,
+                    child: Container(
+                      width: 54, height: 54,
+                      decoration: BoxDecoration(color: iconData['color'], borderRadius: BorderRadius.circular(14)),
+                      child: Icon(iconData['icon'], color: Colors.white, size: 28),
                     ),
                   ),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(14.0),
+                    padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          r.name,
-                          style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w900),
-                        ),
+                        Text(r.name, style: GoogleFonts.lato(fontSize: 16, fontWeight: FontWeight.w900)),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             const Icon(Icons.schedule, size: 14, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Text(
-                              r.time,
-                              style: GoogleFonts.lato(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                            const SizedBox(width: 4),
+                            Text(r.time, style: GoogleFonts.lato(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w800)),
                             const SizedBox(width: 12),
                             const Icon(Icons.local_fire_department, size: 14, color: Colors.orange),
-                            const SizedBox(width: 6),
-                            Text(
-                              r.calories,
-                              style: GoogleFonts.lato(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                            const SizedBox(width: 4),
+                            Text(r.calories, style: GoogleFonts.lato(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w800)),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -502,65 +569,19 @@ class _RecipesScreenState extends State<RecipesScreen> {
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: r.difficulty == 'Easy'
-                                    ? primaryGreen.withOpacity(0.1)
-                                    : Colors.orange.shade50,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                r.difficulty,
-                                style: GoogleFonts.lato(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  color: r.difficulty == 'Easy'
-                                      ? primaryGreen
-                                      : Colors.orange.shade700,
-                                ),
-                              ),
+                              decoration: BoxDecoration(color: r.difficulty == 'Easy' ? primaryGreen.withOpacity(0.1) : Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                              child: Text(r.difficulty, style: GoogleFonts.lato(fontSize: 11, fontWeight: FontWeight.w900, color: r.difficulty == 'Easy' ? primaryGreen : Colors.orange.shade700)),
                             ),
                             Row(
                               children: [
-                                const Icon(Icons.star, size: 16, color: Colors.amber),
-                                const SizedBox(width: 6),
-                                Text(
-                                  RecipeRatingStore.getAverage(r).toStringAsFixed(1),
-                                  style: GoogleFonts.lato(fontWeight: FontWeight.w900),
-                                ),
+                                const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text(RecipeRatingStore.getAverage(r).toStringAsFixed(1), style: GoogleFonts.lato(fontWeight: FontWeight.w900)),
                               ],
                             ),
                           ],
                         ),
                       ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 12.0),
-                  child: GestureDetector(
-                    onTap: () => toggleSave(r.id),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: saved.contains(r.id)
-                                ? primaryGreen
-                                : Colors.white.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            saved.contains(r.id)
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            size: 18,
-                            color: saved.contains(r.id) ? Colors.white : Colors.grey,
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ),
